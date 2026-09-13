@@ -1,0 +1,48 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.9.12112.369
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HKW.MVVM.SourceGenerator.Demo", "HKW.MVVM.SourceGenerator.Demo\HKW.MVVM.SourceGenerator.Demo.csproj", "{2C642080-F748-495E-BA1A-390459D80AD9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HKW.MVVM.SourceGenerator", "HKW.MVVM.SourceGenerator\HKW.MVVM.SourceGenerator.csproj", "{881402AC-1354-42A3-A38A-CD238DDA5256}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HKW.MVVM.Fody", "HKW.MVVM.Fody\HKW.MVVM.Fody.csproj", "{EEDE4891-DC50-4C13-92BD-E21198335C04}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{9D5567E5-9B9C-479D-8068-0122D2236704}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HKW.MVVM.SourceGeneratorTest", "HKW.MVVM.SourceGeneratorTest\HKW.MVVM.SourceGeneratorTest.csproj", "{97C19CF0-7AE7-1CA1-5495-04E67FD31934}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2C642080-F748-495E-BA1A-390459D80AD9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C642080-F748-495E-BA1A-390459D80AD9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C642080-F748-495E-BA1A-390459D80AD9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C642080-F748-495E-BA1A-390459D80AD9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{881402AC-1354-42A3-A38A-CD238DDA5256}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{881402AC-1354-42A3-A38A-CD238DDA5256}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{881402AC-1354-42A3-A38A-CD238DDA5256}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{881402AC-1354-42A3-A38A-CD238DDA5256}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EEDE4891-DC50-4C13-92BD-E21198335C04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EEDE4891-DC50-4C13-92BD-E21198335C04}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EEDE4891-DC50-4C13-92BD-E21198335C04}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EEDE4891-DC50-4C13-92BD-E21198335C04}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97C19CF0-7AE7-1CA1-5495-04E67FD31934}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97C19CF0-7AE7-1CA1-5495-04E67FD31934}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97C19CF0-7AE7-1CA1-5495-04E67FD31934}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97C19CF0-7AE7-1CA1-5495-04E67FD31934}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C2029D3A-1730-49E2-94FB-76A761FDFB6C}
+	EndGlobalSection
+EndGlobal
