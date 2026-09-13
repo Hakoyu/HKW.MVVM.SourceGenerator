@@ -16,7 +16,7 @@
     <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageId>HKW.MVVM.SourceGenerator</PackageId>
-    <WeaverDirPath>..\HKW.MVVM.Fody\bin\$(Configuration)\</WeaverDirPath>
+    <WeaverDirPath>..\HKW.MVVM.SourceGenerator.Fody\bin\$(Configuration)\</WeaverDirPath>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
@@ -59,7 +59,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <ProjectReference
-      Include="..\HKW.MVVM.Fody\HKW.MVVM.Fody.csproj"
+      Include="..\HKW.MVVM.SourceGenerator.Fody\HKW.MVVM.SourceGenerator.Fody.csproj"
       ReferenceOutputAssembly="false"
     />
     <PackageReference Include="FodyPackaging" Version="6.9.3" PrivateAssets="all" />

@@ -7,7 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HKW.MVVM.SourceGenerator.De
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HKW.MVVM.SourceGenerator", "HKW.MVVM.SourceGenerator\HKW.MVVM.SourceGenerator.csproj", "{881402AC-1354-42A3-A38A-CD238DDA5256}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HKW.MVVM.Fody", "HKW.MVVM.Fody\HKW.MVVM.Fody.csproj", "{EEDE4891-DC50-4C13-92BD-E21198335C04}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HKW.MVVM.SourceGenerator.Fody", "HKW.MVVM.SourceGenerator.Fody\HKW.MVVM.SourceGenerator.Fody.csproj", "{EEDE4891-DC50-4C13-92BD-E21198335C04}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{9D5567E5-9B9C-479D-8068-0122D2236704}"
 	ProjectSection(SolutionItems) = preProject

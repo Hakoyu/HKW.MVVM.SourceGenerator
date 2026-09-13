@@ -19,7 +19,7 @@
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="true"
     />
-    <WeaverFiles Include="$(SolutionDir)HKW.MVVM.Fody\bin\$(Configuration)\netstandard2.0\HKW.MVVM.Fody.dll" />
+    <WeaverFiles Include="$(SolutionDir)HKW.MVVM.SourceGenerator.Fody\bin\$(Configuration)\netstandard2.0\HKW.MVVM.SourceGenerator.Fody.dll" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fody" Version="6.9.3" PrivateAssets="all" />
