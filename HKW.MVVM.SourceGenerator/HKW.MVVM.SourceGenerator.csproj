@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Company>HKW</Company>
     <Authors>HKW</Authors>
     <PackageDescription>An source generator MVVM library, based on CommunityToolkit.Mvvm, using SourceGenerator and Fody for mixed source code generation.</PackageDescription>
