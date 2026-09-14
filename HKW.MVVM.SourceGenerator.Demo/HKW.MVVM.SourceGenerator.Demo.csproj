@@ -8,17 +8,10 @@
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference
-      Include="HKW.SourceGeneratorUtils"
-      Version="0.1.3"
-      GeneratePathProperty="true"
-    />
+    <PackageReference Include="HKW.MVVM" Version="0.1.1" />
+    <PackageReference Include="HKW.SourceGeneratorUtils" Version="0.1.3" GeneratePathProperty="true" />
     <Analyzer Include="$(PkgHKW_SourceGeneratorUtils)\lib\netstandard2.0\*.dll" />
-    <ProjectReference
-      Include="..\HKW.MVVM.SourceGenerator\HKW.MVVM.SourceGenerator.csproj"
-      OutputItemType="Analyzer"
-      ReferenceOutputAssembly="true"
-    />
+    <ProjectReference Include="..\HKW.MVVM.SourceGenerator\HKW.MVVM.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
     <WeaverFiles Include="$(SolutionDir)HKW.MVVM.SourceGenerator.Fody\bin\$(Configuration)\netstandard2.0\HKW.MVVM.SourceGenerator.Fody.dll" />
   </ItemGroup>
   <ItemGroup>
@@ -30,10 +23,7 @@
   </ItemGroup>
   <Target Name="DisableMvvmToolkitSourceGenerators" BeforeTargets="CoreCompile">
     <ItemGroup>
-      <_MvvmToolkitAnalyzers
-        Include="@(Analyzer)"
-        Condition="$([System.String]::Copy('%(Analyzer.Filename)').Contains('CommunityToolkit.Mvvm.SourceGenerators'))"
-      />
+      <_MvvmToolkitAnalyzers Include="@(Analyzer)" Condition="$([System.String]::Copy('%(Analyzer.Filename)').Contains('CommunityToolkit.Mvvm.SourceGenerators'))" />
 
       <Analyzer Remove="@(_MvvmToolkitAnalyzers)" />
     </ItemGroup>

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace HKW.MVVM.Fody;
+namespace HKW.MVVM.SourceGenerator.Fody;
 
 public class WeaverException : Exception
 {

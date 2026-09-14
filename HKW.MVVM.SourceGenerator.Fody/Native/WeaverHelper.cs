@@ -3,7 +3,7 @@ using System.Diagnostics;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
 
-namespace HKW.MVVM.Fody;
+namespace HKW.MVVM.SourceGenerator.Fody;
 
 internal static class WeaverHelper
 {
@@ -65,10 +65,28 @@ internal static class WeaverHelper
 
         NotifyPropertyChangeFromAttribute =
             ModuleDefinition.FindType(
-                "HKW.HKWReactiveUI",
+                "HKW.MVVM.SourceGenerator",
                 "NotifyPropertyChangeFromAttribute",
                 HKWMVVMSourceGenerator
             ) ?? throw new WeaverException("NotifyPropertyChangeFromAttribute is null");
+
+        HKWMVVM = moduleDefinition
+            .AssemblyReferences.Where(x => x.Name == "HKW.MVVM")
+            .OrderByDescending(x => x.Version)
+            .FirstOrDefault();
+
+        ObservableAsPropertyAttribute = ModuleDefinition.FindType(
+            "HKW.MVVM.SourceGenerator",
+            "ObservableAsPropertyAttribute",
+            HKWMVVMSourceGenerator
+        );
+
+        ObservableAsPropertyHelper = ModuleDefinition.FindType(
+            "HKW.MVVM",
+            "ObservableAsPropertyHelper`1",
+            HKWMVVM,
+            "T"
+        );
 
         InitializeGeneratedCodeAttribute(ModuleDefinition);
         return true;
@@ -118,8 +136,11 @@ internal static class WeaverHelper
     public static ModuleDefinition ModuleDefinition { get; private set; } = null!;
     public static ModuleWeaverLogger Logger { get; private set; } = null!;
     public static AssemblyNameReference MVVMToolkit { get; private set; } = null!;
+    public static AssemblyNameReference? HKWMVVM { get; private set; } = null!;
     public static AssemblyNameReference HKWMVVMSourceGenerator { get; private set; } = null!;
     public static TypeDefinition ObservableObject { get; private set; } = null!;
     public static TypeReference ObservablePropertyAttribute { get; private set; } = null!;
     public static TypeReference NotifyPropertyChangeFromAttribute { get; private set; } = null!;
+    public static TypeReference ObservableAsPropertyAttribute { get; private set; } = null!;
+    public static TypeReference ObservableAsPropertyHelper { get; private set; } = null!;
 }

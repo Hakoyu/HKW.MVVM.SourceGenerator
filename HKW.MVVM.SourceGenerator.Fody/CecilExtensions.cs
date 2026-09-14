@@ -6,7 +6,7 @@
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 
-namespace HKW.MVVM.Fody;
+namespace HKW.MVVM.SourceGenerator.Fody;
 
 /// <summary>
 /// Mono.Cecil extension methods.

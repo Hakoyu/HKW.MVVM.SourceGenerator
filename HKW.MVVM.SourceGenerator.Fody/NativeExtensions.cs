@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Mono.Cecil;
 
-namespace HKW.MVVM.Fody;
+namespace HKW.MVVM.SourceGenerator.Fody;
 
 internal static class NativeExtensions
 {

@@ -4,7 +4,7 @@ using System.Text;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
 
-namespace HKW.MVVM.Fody;
+namespace HKW.MVVM.SourceGenerator.Fody;
 
 internal sealed class ClassInfo
 {

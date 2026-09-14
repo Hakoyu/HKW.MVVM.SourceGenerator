@@ -44,6 +44,7 @@ internal partial class Generator : IIncrementalGenerator
             NotifyPropertyChangeFromGenerator.Generate(classInfo);
             ObservablePropertyGenerator.Generate(classInfo);
             RelayCommandGenerator.Generate(classInfo);
+            ObservableAsPropertyGenerator.Generate(classInfo);
 
             if (ClassSourceWriter.FirstClassFullName == string.Empty)
                 ClassSourceWriter.FirstClassFullName = classInfo.FullTypeName;

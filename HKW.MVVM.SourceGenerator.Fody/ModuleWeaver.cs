@@ -8,7 +8,7 @@ using Fody;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
 
-namespace HKW.MVVM.Fody;
+namespace HKW.MVVM.SourceGenerator.Fody;
 
 /// <summary>
 /// ReactiveUI module weaver.
@@ -38,8 +38,8 @@ public class ModuleWeaver : BaseModuleWeaver
         {
             var classInfo = new ClassInfo(classType);
             ReactivePropertyWeaver.Weave(classInfo);
-            //NotifyPropertyChangeFromWeaver.Weave(classInfo);
-            //ObservableAsPropertyWeaver.Weave(classInfo);
+            NotifyPropertyChangeFromWeaver.Weave(classInfo);
+            ObservableAsPropertyWeaver.Weave(classInfo);
         }
     }
 
@@ -53,6 +53,7 @@ public class ModuleWeaver : BaseModuleWeaver
             "System",
             "System.Runtime",
             "CommunityToolkit.Mvvm",
+            "HKW.MVVM",
             "HKW.MVVM.SourceGenerator",
         ];
     }

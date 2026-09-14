@@ -12,9 +12,6 @@ namespace HKW.MVVM.Demo;
 
 internal class Program
 {
-    //private string $Name;
-    //public string Name { get; set; } = string.Empty;
-
     static void Main(string[] args)
     {
         var tm = new TestModel();
@@ -33,70 +30,74 @@ public partial class TestModel : ObservableObject
 {
     public TestModel()
     {
-        Method1Command.Execute(1);
-        Method2Command.Execute(1);
-        Method3Command.Execute(1);
-        Method4Command.Execute(1);
-        Method5Command.Execute(1);
-        Method6Command.Execute(1);
-        Task.Delay(10000).Wait();
+        //var oaph = this.WhenAnyValue(x => x.FirstName).ToProperty(this, x => x.FullName);
+        //Method1Command.Execute(1);
+        //Method2Command.Execute(1);
+        //Method3Command.Execute(1);
+        //Method4Command.Execute(1);
+        //Method5Command.Execute(1);
+        //Method6Command.Execute(1);
+        //Task.Delay(10000).Wait();
     }
+
+    [ObservableAsProperty]
+    public string Name1 => this.WhenAnyValue(x => x.Name).ToProperty(this, nameof(Name1)).Value!;
 
     [ObservableProperty]
     public string Name { get; set; } = string.Empty;
 
-    [ObservableProperty]
-    public string FirstName { get; set; } = string.Empty;
+    //[ObservableProperty]
+    //public string FirstName { get; set; } = string.Empty;
 
-    [ObservableProperty]
-    public string LastName { get; set; } = string.Empty;
+    //[ObservableProperty]
+    //public string LastName { get; set; } = string.Empty;
 
-    [NotifyPropertyChangeFrom(nameof(FirstName), nameof(LastName))]
-    public string FullName => $"{FirstName} {LastName}";
+    //[NotifyPropertyChangeFrom(nameof(FirstName), nameof(LastName))]
+    //public string FullName => $"{FirstName} {LastName}";
 
-    [ObservableProperty]
-    public bool CanExecute { get; set; }
+    //[ObservableProperty]
+    //public bool CanExecute { get; set; }
 
-    [RelayCommand(CanExecute = nameof(CanExecute))]
-    private void Method1()
-    {
-        Console.WriteLine(nameof(Method1));
-    }
+    //[RelayCommand(CanExecute = nameof(CanExecute))]
+    //private void Method1()
+    //{
+    //    Console.WriteLine(nameof(Method1));
+    //}
 
-    [RelayCommand]
-    private void Method2(int i)
-    {
-        Console.WriteLine(nameof(Method2));
-    }
+    //[RelayCommand]
+    //private void Method2(int i)
+    //{
+    //    Console.WriteLine(nameof(Method2));
+    //}
 
-    [RelayCommand]
-    private int Method3(int i)
-    {
-        Console.WriteLine(nameof(Method3));
-        return i;
-    }
+    //[RelayCommand]
+    //private int Method3(int i)
+    //{
+    //    Console.WriteLine(nameof(Method3));
+    //    return i;
+    //}
 
-    [RelayCommand]
-    private async Task Method4()
-    {
-        Console.WriteLine(nameof(Method4));
-        await Task.Delay(100);
-    }
+    //[RelayCommand]
+    //private async Task Method4()
+    //{
+    //    Console.WriteLine(nameof(Method4));
+    //    await Task.Delay(100);
+    //}
 
-    [RelayCommand]
-    private async Task Method5(int i)
-    {
-        Console.WriteLine(nameof(Method5));
-        await Task.Delay(100);
-    }
+    //[RelayCommand]
+    //private async Task Method5(int i)
+    //{
+    //    Console.WriteLine(nameof(Method5));
+    //    await Task.Delay(100);
+    //}
 
-    [RelayCommand]
-    private async Task<int> Method6(int i)
-    {
-        Console.WriteLine(nameof(Method6));
-        await Task.Delay(100);
-        return i;
-    }
+    //[RelayCommand]
+    //private async Task<int> Method6(int i)
+    //{
+    //    Console.WriteLine(nameof(Method6));
+    //    await Task.Delay(100);
+    //    return i;
+    //}
 }
 
 /// <summary>

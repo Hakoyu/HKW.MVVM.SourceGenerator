@@ -16,6 +16,9 @@ internal static class TypeFullNames
         "CommunityToolkit.Mvvm.ComponentModel.ObservableObjectAttribute";
     public static string NotifyPropertyChangeFrom { get; } =
         typeof(NotifyPropertyChangeFromAttribute).FullName;
+
+    public static string ObservableAsPropertyAttribute { get; } =
+        typeof(ObservableAsPropertyAttribute).FullName;
     public const string ObservableObject = "CommunityToolkit.Mvvm.ComponentModel.ObservableObject";
 
     public static bool InheritedFromX(
