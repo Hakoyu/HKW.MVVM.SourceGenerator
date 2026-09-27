@@ -48,3 +48,18 @@ public partial class TestModel : ObservableObject
         SelectedValue = value;
     }
 }
+
+public partial class UserViewModel : ObservableObject
+{
+    [ObservableProperty]
+    public string Name { get; set; } = string.Empty;
+
+    [NotifyPropertyChangeFrom(nameof(Name))]
+    public bool IsNameValid => !string.IsNullOrWhiteSpace(Name);
+
+    [RelayCommand(CanExecute = nameof(IsNameValid))]
+    private void Save()
+    {
+        // 保存数据
+    }
+}
