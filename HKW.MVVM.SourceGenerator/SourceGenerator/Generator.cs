@@ -15,12 +15,30 @@ internal partial class Generator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        var observableClasses = context
+            .SyntaxProvider.CreateSyntaxProvider<SyntaxTree>(
+                static (node, _) => node is ClassDeclarationSyntax,
+                static (syntaxContext, _) =>
+                {
+                    var declaredClass = (ClassDeclarationSyntax)syntaxContext.Node;
+                    var classSymbol = syntaxContext.SemanticModel.GetDeclaredSymbol(declaredClass);
+                    // 如果没有继承ObservableObject,则为null
+                    return classSymbol?.InheritedFrom(TypeFullNames.ObservableObject) is true
+                        ? declaredClass.SyntaxTree
+                        : null!;
+                }
+            )
+            .Where(static syntaxTree => syntaxTree is not null)
+            .Select(static (syntaxTree, _) => syntaxTree)
+            .Collect();
+
         context.RegisterSourceOutput(
-            context.CompilationProvider,
-            static (spc, compilation) =>
+            context.CompilationProvider.Combine(observableClasses),
+            static (spc, input) =>
             {
-                GeneratorHelper.Initialize(spc, compilation);
-                foreach (var syntaxTree in compilation.SyntaxTrees)
+                GeneratorHelper.Initialize(spc, input.Left);
+
+                foreach (var syntaxTree in input.Right.Distinct())
                 {
                     ParseSyntaxTree(syntaxTree);
                 }
@@ -60,7 +78,7 @@ internal partial class Generator : IIncrementalGenerator
     {
         var classSymbol = (INamedTypeSymbol)
             ModelExtensions.GetDeclaredSymbol(syntaxTreeInfo.SemanticModel, declaredClass)!;
-        if (classSymbol.InheritedFromX(TypeFullNames.ObservableObject) is false)
+        if (classSymbol.InheritedFrom(TypeFullNames.ObservableObject) is false)
             return null; // 如果没有继承ObservableObject,则跳过
 
         // 如果不是分布类型,则触发异常

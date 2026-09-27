@@ -4,10 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Windows.Input;
-using HKW.HKWReactiveUI;
-using ReactiveUI;
-using ReactiveUI.Builder;
-using ReactiveUI.Primitives;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace HKW.HKWReactiveUITest;
 
@@ -19,10 +16,10 @@ internal class Program
     }
 }
 
-public partial class TestModel : ReactiveObject
+public partial class TestModel : ObservableObject
 {
     public TestModel() { }
 
-    [ReactiveProperty]
+    [ObservableProperty]
     public string Name { get; set; } = string.Empty;
 }

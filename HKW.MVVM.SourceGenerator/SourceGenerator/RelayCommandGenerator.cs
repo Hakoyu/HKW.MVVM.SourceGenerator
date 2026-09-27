@@ -57,10 +57,7 @@ internal class RelayCommandGenerator
         var attributeParams = attributeData.GetParams();
 
         // 是否为异步方法
-        bool isTask = methodSymbol.ReturnType.InheritedFromX(
-            GeneratorHelper.TaskTypeFullName,
-            SymbolDisplayFormat.FullyQualifiedFormat
-        );
+        bool isTask = methodSymbol.ReturnType.InheritedFrom(GeneratorHelper.TaskTypeFullName);
         // 是否为空返回值
         var isReturnTypeVoid = methodSymbol.ReturnType.IsVoid();
 

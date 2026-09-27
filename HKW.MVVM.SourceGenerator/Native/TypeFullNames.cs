@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text;
+using HKW.SourceGeneratorUtils;
 using Microsoft.CodeAnalysis;
 
 namespace HKW.MVVM.SourceGenerator;
@@ -9,34 +10,17 @@ namespace HKW.MVVM.SourceGenerator;
 internal static class TypeFullNames
 {
     public const string ObservablePropertyAttribute =
-        "CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute";
-    public const string RelayCommandAttribute = "CommunityToolkit.Mvvm.Input.RelayCommandAttribute";
+        "global::CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute";
+    public const string RelayCommandAttribute =
+        "global::CommunityToolkit.Mvvm.Input.RelayCommandAttribute";
 
     public const string NotifyPropertyChangeForAttribute =
-        "CommunityToolkit.Mvvm.ComponentModel.ObservableObjectAttribute";
+        "global::CommunityToolkit.Mvvm.ComponentModel.ObservableObjectAttribute";
+    public const string ObservableObject =
+        "global::CommunityToolkit.Mvvm.ComponentModel.ObservableObject";
     public static string NotifyPropertyChangeFrom { get; } =
-        typeof(NotifyPropertyChangeFromAttribute).FullName;
+        typeof(NotifyPropertyChangeFromAttribute).GetGlobalFullName();
 
     public static string ObservableAsPropertyAttribute { get; } =
-        typeof(ObservableAsPropertyAttribute).FullName;
-    public const string ObservableObject = "CommunityToolkit.Mvvm.ComponentModel.ObservableObject";
-
-    public static bool InheritedFromX(
-        this ITypeSymbol typeSymbol,
-        string baseTypeFullName,
-        SymbolDisplayFormat? symbolDisplayFormat = null
-    )
-    {
-        var currentType = typeSymbol;
-        while (currentType != null)
-        {
-            var typeName = symbolDisplayFormat is null
-                ? currentType.ToString()
-                : currentType.ToDisplayString(symbolDisplayFormat);
-            if (typeName == baseTypeFullName)
-                return true;
-            currentType = currentType.BaseType;
-        }
-        return false;
-    }
+        typeof(ObservableAsPropertyAttribute).GetGlobalFullName();
 }
