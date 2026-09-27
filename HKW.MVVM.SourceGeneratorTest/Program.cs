@@ -20,7 +20,10 @@ public partial class TestModel : ObservableObject
     public bool IsNameValid => string.IsNullOrWhiteSpace(Name) is false;
 
     [NotifyPropertyChangeFrom(NotifyPropertyChangeFromCacheMode.Enable, nameof(Name))]
-    public bool IsNameValidCached => string.IsNullOrWhiteSpace(Name) is false;
+    public bool IsNameValidCacheEnable => string.IsNullOrWhiteSpace(Name) is false;
+
+    [NotifyPropertyChangeFrom(NotifyPropertyChangeFromCacheMode.OnFirstChange, nameof(Name))]
+    public bool IsNameValidCacheOnFirstChange => string.IsNullOrWhiteSpace(Name) is false;
 
     [ObservableAsProperty]
     public string UpperName =>

@@ -79,18 +79,33 @@ public sealed class SourceGeneratorTests
     }
 
     [TestMethod]
-    public void NotifyPropertyChangeFrom_WithCacheModeUsesInitialAndUpdatedValue()
+    public void NotifyPropertyChangeFrom_WithCacheEnableUsesInitialAndUpdatedValue()
     {
         var model = new TestModel();
         var changes = new List<string?>();
         model.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
 
-        Assert.IsFalse(model.IsNameValidCached);
+        Assert.IsFalse(model.IsNameValidCacheEnable);
 
         model.Name = "Alice";
 
-        Assert.IsTrue(model.IsNameValidCached);
-        CollectionAssert.Contains(changes, nameof(TestModel.IsNameValidCached));
+        Assert.IsTrue(model.IsNameValidCacheEnable);
+        CollectionAssert.Contains(changes, nameof(TestModel.IsNameValidCacheEnable));
+    }
+
+    [TestMethod]
+    public void NotifyPropertyChangeFrom_WithCacheOnFirstChangeUsesInitialAndUpdatedValue()
+    {
+        var model = new TestModel();
+        var changes = new List<string?>();
+        model.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+
+        Assert.IsFalse(model.IsNameValidCacheOnFirstChange);
+
+        model.Name = "Alice";
+
+        Assert.IsTrue(model.IsNameValidCacheOnFirstChange);
+        CollectionAssert.Contains(changes, nameof(TestModel.IsNameValidCacheEnable));
     }
 
     [TestMethod]
