@@ -9,6 +9,9 @@ namespace HKW.MVVM.SourceGenerator;
 
 internal sealed class ClassInfo
 {
+    public const string SourceName = "_source";
+    public const string SourceParamName = "source";
+
     public ClassInfo(
         SyntaxTreeInfo syntaxTreeInfo,
         ClassDeclarationSyntax declarationSyntax,

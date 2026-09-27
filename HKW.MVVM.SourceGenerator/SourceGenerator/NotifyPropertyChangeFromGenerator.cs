@@ -138,10 +138,13 @@ internal class NotifyPropertyChangeFromGenerator
                 $"Get{info.Property.Name}",
                 info.GetMethod
             );
+            var ass = $"{field.Name} = {ClassInfo.SourceName}.{getMethod.Name}();";
+            // 如果启用则初始化
             if (info.CacheMode is NotifyPropertyChangeFromCacheMode.Enable)
-                _classInfo.InitializeMembers.Add($"{field.Name} = {getMethod.Name}();");
+                _classInfo.InitializeMembers.Add(ass);
             _classInfo.HelperMembers.Add(field);
-            _classInfo.HelperMembers.Add(getMethod);
+            _classInfo.Members.Add(getMethod);
+            changedMethod.Contents.Insert(0, ass);
         }
         _classInfo.HelperMembers.Add(changingMethod);
         _classInfo.HelperMembers.Add(changedMethod);
@@ -150,7 +153,7 @@ internal class NotifyPropertyChangeFromGenerator
     public List<string> GenerateChangingMethodContexts(NotifyPropertyChangeFromInfo info)
     {
         var contents = new List<string>();
-        contents.Add($"_source.OnPropertyChanging(\"{info.Property.Name}\");");
+        contents.Add($"{ClassInfo.SourceName}.OnPropertyChanging(\"{info.Property.Name}\");");
         if (
             _classInfo.PropertyChangingMemberByName.TryGetValue(
                 info.Property.Name,
@@ -168,8 +171,7 @@ internal class NotifyPropertyChangeFromGenerator
     public List<string> GenerateChangedMethodContexts(NotifyPropertyChangeFromInfo info)
     {
         var contents = new List<string>();
-
-        contents.Add($"_source.OnPropertyChanged(\"{info.Property.Name}\");");
+        contents.Add($"{ClassInfo.SourceName}.OnPropertyChanged(\"{info.Property.Name}\");");
 
         if (
             _classInfo.PropertyChangedMemberByName.TryGetValue(

@@ -81,7 +81,7 @@ internal class ClassSourceWriter
         GenerateReactiveHelperCtor();
         _writer.WriteLine(GeneratorHelper.GeneratedCodeAttribute);
         _writer.WriteLine(GeneratorHelper.DebuggerBrowsableNeverAttribute);
-        _writer.WriteLine($"{_classInfo.FullTypeName} _source;");
+        _writer.WriteLine($"{_classInfo.FullTypeName} {ClassInfo.SourceName};");
         foreach (var info in _classInfo.HelperMembers)
             _writer.WriteInfo(info);
 
@@ -95,11 +95,11 @@ internal class ClassSourceWriter
         _writer.WriteLine(GeneratorHelper.GeneratedCodeAttribute);
 
         _writer.WriteLine(
-            $"public {_classInfo.HelperObjectName}({_classInfo.FullTypeName} source)"
+            $"public {_classInfo.HelperObjectName}({_classInfo.FullTypeName} {ClassInfo.SourceParamName})"
         );
         _writer.WriteLine("{");
         _writer.Indent++;
-        _writer.WriteLine("_source = source;");
+        _writer.WriteLine($"{ClassInfo.SourceName} = {ClassInfo.SourceParamName};");
 
         foreach (var member in _classInfo.InitializeMembers)
         {

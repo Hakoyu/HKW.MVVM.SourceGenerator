@@ -5,6 +5,7 @@ using HKW.MVVM.SourceGenerator;
 
 namespace HKW.MVVM.SourceGeneratorTest;
 
+// 仅能在VS中进行编译测试, 无法使用 `dotnet build`
 internal class Program
 {
     internal static void Main(string[] args) { }
@@ -17,6 +18,9 @@ public partial class TestModel : ObservableObject
 
     [NotifyPropertyChangeFrom(nameof(Name))]
     public bool IsNameValid => string.IsNullOrWhiteSpace(Name) is false;
+
+    [NotifyPropertyChangeFrom(NotifyPropertyChangeFromCacheMode.Enable, nameof(Name))]
+    public bool IsNameValidCached => string.IsNullOrWhiteSpace(Name) is false;
 
     [ObservableAsProperty]
     public string UpperName =>
@@ -31,5 +35,13 @@ public partial class TestModel : ObservableObject
     private void Save()
     {
         SaveCount++;
+    }
+
+    public int SelectedValue { get; private set; }
+
+    [RelayCommand]
+    private void Select(int value)
+    {
+        SelectedValue = value;
     }
 }
