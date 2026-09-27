@@ -267,8 +267,8 @@ private bool GetIsNameValid()
 
 private void NotifyIsNameValidChanged()
 {
-    _source.OnPropertyChanged("IsNameValid");
     _isNameValidCache = GetIsNameValid();
+    _source.OnPropertyChanged("IsNameValid");
 }
 
 public UserViewModelObservableObjectHelper(UserViewModel source)
@@ -384,9 +384,9 @@ public string UpperName => UserViewModelObservableHelper._upperNameOAPH.Value;
 
 ## 开发与验证
 
-仓库包含源生成器、Fody weaver 和测试项目。
-使用 `dotnet build HKW.MVVM.SourceGenerator` 即可编译完整的程序集。
-但因 Fody 的特殊性，此项目的单元测试仅能在 VisualStudio 中进行编译测试, 无法使用 `dotnet build` 命令编译测试。
+- 仓库包含源生成器、Fody weaver 和测试项目。
+- 使用 `dotnet build HKW.MVVM.SourceGenerator` 即可编译完整的程序集。
+- 因 Fody 的特殊性，此项目的单元测试仅能在 VisualStudio 中进行编译测试, 无法使用 `dotnet build` 命令编译测试。
 
 ## 许可证
 
