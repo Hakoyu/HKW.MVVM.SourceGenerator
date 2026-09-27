@@ -38,14 +38,11 @@ internal class ClassSourceWriter
         _writer.WriteLine($"namespace {_classInfo.Namespace}");
         _writer.WriteLine("{");
         _writer.Indent++;
-        if (_classInfo.FullTypeName == FirstClassFullName)
-        {
-            // 添加ReferenceType特性,并引用ReactiveObject
-            // 防止编译器优化,如果整个项目中不引用ReactiveUI,则ReactiveUI的Assembly不会被程序集引用,会导致Fody无法正常构建
-            _writer.WriteLine(
-                "[HKW.MVVM.SourceGenerator.ReferenceType(typeof(HKW.MVVM.SourceGenerator.NotifyPropertyChangeFromAttribute))]"
-            );
-        }
+        // 添加 ReferenceType 特性,并引用 HKW.MVVM.SourceGenerator
+        // 防止编译器优化,如果整个项目中不引用 HKW.MVVM.SourceGenerator,则 HKW.MVVM.SourceGenerator 的Assembly 不会被程序集引用,会导致 Fody 无法正常构建
+        _writer.WriteLine(
+            "[global::HKW.MVVM.SourceGenerator.ReferenceType(typeof(global::HKW.MVVM.SourceGenerator.ReferenceTypeAttribute))]"
+        );
         // 获取可访问性
         var accessibility = _classInfo.DeclarationSyntax.Modifiers.GetAccessibility();
         _writer.WriteLine(

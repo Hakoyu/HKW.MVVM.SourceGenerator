@@ -6,14 +6,11 @@ using System.Numerics;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace HKW.HKWReactiveUITest;
+namespace HKW.MVVM.SourceGeneratorTest;
 
 internal class Program
 {
-    static void Main(string[] args)
-    {
-        //RxAppBuilder.CreateReactiveUIBuilder().WithCoreServices().BuildApp();
-    }
+    internal static void Main(string[] args) { }
 }
 
 public partial class TestModel : ObservableObject

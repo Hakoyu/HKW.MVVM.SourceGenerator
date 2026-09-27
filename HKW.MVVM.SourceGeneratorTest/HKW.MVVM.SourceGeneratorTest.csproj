@@ -8,7 +8,7 @@
     <RootNamespace>HKW.MVVMSourceGeneratorTest</RootNamespace>
     <PathMap>$(SolutionDir)=$(MSBuildProjectName.Replace(" ", "_"))/</PathMap>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-    <StartupObject>HKW.MVVMSourceGeneratorTest.Program</StartupObject>
+    <StartupObject>HKW.MVVM.SourceGeneratorTest.Program</StartupObject>
     <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 
