@@ -5,11 +5,8 @@
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>HKW.MVVMSourceGeneratorTest</RootNamespace>
-    <PathMap>$(SolutionDir)=$(MSBuildProjectName.Replace(" ", "_"))/</PathMap>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <StartupObject>HKW.MVVM.SourceGeneratorTest.Program</StartupObject>
-    <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="HKW.MVVM" Version="0.1.1" />
+    <PackageReference Include="HKW.MVVM" Version="0.1.2" />
     <PackageReference
       Include="HKW.SourceGeneratorUtils"
       Version="0.1.11"
