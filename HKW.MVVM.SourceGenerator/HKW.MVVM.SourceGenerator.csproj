@@ -51,6 +51,7 @@
       Version="5.9.0"
       PrivateAssets="all"
     />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
   </ItemGroup>
 
   <ItemGroup>

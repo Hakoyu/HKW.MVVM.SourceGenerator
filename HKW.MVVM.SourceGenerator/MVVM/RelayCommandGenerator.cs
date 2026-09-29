@@ -37,7 +37,7 @@ internal class RelayCommandGenerator
         // 获取特性数据
         if (
             methodSymbol.TryGetFirstAttribute(
-                TypeFullNames.RelayCommandAttribute,
+                MVVMGenerator.RelayCommandAttribute,
                 out var attributeData
             )
             is false
@@ -47,7 +47,7 @@ internal class RelayCommandGenerator
         if (methodSymbol.Parameters.Length > 1)
         {
             var diagnostic = Diagnostic.Create(
-                Descriptors.RelayCommandParametersGreaterThan1,
+                MVVMDescriptors.RelayCommandParametersGreaterThan1,
                 methodSyntax.GetLocation()
             );
             GeneratorHelper.ProductionContext.ReportDiagnostic(diagnostic);

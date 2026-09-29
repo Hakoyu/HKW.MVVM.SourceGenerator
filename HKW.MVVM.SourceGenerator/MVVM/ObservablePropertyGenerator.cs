@@ -31,15 +31,15 @@ internal class ObservablePropertyGenerator
     private void AnalyzeProperty(PropertySS ss)
     {
         ss.OutData(out var propertySyntax, out var propertySymbol);
-        if (propertySymbol.GetFirstAttribute(TypeFullNames.ObservablePropertyAttribute) is null)
+        if (propertySymbol.GetFirstAttribute(MVVMGenerator.ObservablePropertyAttribute) is null)
             return;
         // 如果没有Set方法则异常
         if (propertySymbol.SetMethod is null)
         {
             var diagnostic = Diagnostic.Create(
-                Descriptors.PropertyNotHaveSetMethod,
+                MVVMDescriptors.PropertyNotHaveSetMethod,
                 propertySyntax.GetLocation(),
-                nameof(TypeFullNames.ObservablePropertyAttribute)
+                nameof(MVVMGenerator.ObservablePropertyAttribute)
             );
             GeneratorHelper.ProductionContext.ReportDiagnostic(diagnostic);
             return;

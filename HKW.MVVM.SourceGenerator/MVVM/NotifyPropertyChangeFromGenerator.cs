@@ -37,7 +37,7 @@ internal class NotifyPropertyChangeFromGenerator
         // 获取特性数据
         if (
             propertySymbol.TryGetFirstAttribute(
-                TypeFullNames.NotifyPropertyChangeFrom,
+                MVVMGenerator.NotifyPropertyChangeFrom,
                 out var attributeData
             )
             is false
@@ -47,11 +47,11 @@ internal class NotifyPropertyChangeFromGenerator
         if (propertySymbol.SetMethod is not null)
         {
             var diagnostic = Diagnostic.Create(
-                Descriptors.PropertyHasSetMethod,
+                MVVMDescriptors.PropertyHasSetMethod,
                 attributeData.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
                     attributeData.ApplicationSyntaxReference.Span
                 ),
-                nameof(TypeFullNames.NotifyPropertyChangeFrom)
+                nameof(MVVMGenerator.NotifyPropertyChangeFrom)
             );
             GeneratorHelper.ProductionContext.ReportDiagnostic(diagnostic);
             return null;

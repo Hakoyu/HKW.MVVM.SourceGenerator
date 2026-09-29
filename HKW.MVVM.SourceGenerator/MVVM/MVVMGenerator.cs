@@ -11,8 +11,23 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace HKW.MVVM.SourceGenerator;
 
 [Generator]
-internal partial class Generator : IIncrementalGenerator
+internal partial class MVVMGenerator : IIncrementalGenerator
 {
+    public const string ObservablePropertyAttribute =
+        "global::CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute";
+    public const string RelayCommandAttribute =
+        "global::CommunityToolkit.Mvvm.Input.RelayCommandAttribute";
+
+    public const string NotifyPropertyChangeForAttribute =
+        "global::CommunityToolkit.Mvvm.ComponentModel.ObservableObjectAttribute";
+    public const string ObservableObject =
+        "global::CommunityToolkit.Mvvm.ComponentModel.ObservableObject";
+    public static string NotifyPropertyChangeFrom { get; } =
+        typeof(NotifyPropertyChangeFromAttribute).GetGlobalFullName();
+
+    public static string ObservableAsPropertyAttribute { get; } =
+        typeof(ObservableAsPropertyAttribute).GetGlobalFullName();
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var observableClasses = context
@@ -23,7 +38,7 @@ internal partial class Generator : IIncrementalGenerator
                     var declaredClass = (ClassDeclarationSyntax)syntaxContext.Node;
                     var classSymbol = syntaxContext.SemanticModel.GetDeclaredSymbol(declaredClass);
                     // 如果没有继承ObservableObject,则为null
-                    return classSymbol?.InheritedFrom(TypeFullNames.ObservableObject) is true
+                    return classSymbol?.InheritedFrom(MVVMGenerator.ObservableObject) is true
                         ? declaredClass.SyntaxTree
                         : null!;
                 }
@@ -75,14 +90,14 @@ internal partial class Generator : IIncrementalGenerator
     {
         var classSymbol = (INamedTypeSymbol)
             ModelExtensions.GetDeclaredSymbol(syntaxTreeInfo.SemanticModel, declaredClass)!;
-        if (classSymbol.InheritedFrom(TypeFullNames.ObservableObject) is false)
+        if (classSymbol.InheritedFrom(MVVMGenerator.ObservableObject) is false)
             return null; // 如果没有继承ObservableObject,则跳过
 
         // 如果不是分布类型,则触发异常
         if (declaredClass.Modifiers.Any(SyntaxKind.PartialKeyword) is false)
         {
             var diagnostic = Diagnostic.Create(
-                Descriptors.NotPartialClass,
+                MVVMDescriptors.NotPartialClass,
                 classSymbol.Locations[0]
             );
             GeneratorHelper.ProductionContext.ReportDiagnostic(diagnostic);
