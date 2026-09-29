@@ -6,21 +6,17 @@ namespace HKW.MVVM.SourceGeneratorTest;
 [TestClass]
 public sealed class DIGeneratorTests
 {
-    private static void ConfigureGeneratedServices()
+#pragma warning disable HKWDI006
+    private static void RegisterWithoutConfiguration()
     {
-        DIRegistrations.Register<ConstructorDependency>();
-        DIRegistrations.Register<PropertyDependency>();
-        DIRegistrations.Register<IPlugin, FirstPlugin>();
-        DIRegistrations.Register<IPlugin, SecondPlugin>();
-        DIRegistrations.RegisterLazySingleton<LazyDependency>();
-        DIRegistrations.Register<IInjectedService, InjectedService>();
-        DIRegistrations.RegisterScoped<ScopedDependency>();
+        DIRegistrations.Register<IgnoredDependency>();
     }
+#pragma warning restore HKWDI006
 
     [TestMethod]
     public void UsesSelectedConstructorAndInjectsProperty()
     {
-        using var provider = new ServiceCollection().AddGeneratedServices().BuildServiceProvider();
+        using var provider = TestServices.Build().BuildServiceProvider();
 
         var service = provider.GetRequiredService<IInjectedService>();
 
@@ -34,7 +30,13 @@ public sealed class DIGeneratorTests
     [TestMethod]
     public void HonorsGeneratedLifetimes()
     {
-        using var provider = new ServiceCollection().AddGeneratedServices().BuildServiceProvider();
+        var services = new ServiceCollection();
+
+        var result = TestServices.Build(services);
+        using var provider = result.BuildServiceProvider();
+
+        Assert.AreSame(services, result);
+        Assert.IsNull(provider.GetService<IgnoredDependency>());
 
         Assert.AreNotSame(
             provider.GetRequiredService<IInjectedService>(),
@@ -56,6 +58,42 @@ public sealed class DIGeneratorTests
             secondScope.ServiceProvider.GetRequiredService<ScopedDependency>()
         );
     }
+
+    [TestMethod]
+    public void RegistrationsAreScopedToConfigurationType()
+    {
+        using var normalProvider = TestServices.Build().BuildServiceProvider();
+        using var isolatedProvider = IsolatedServices.Build().BuildServiceProvider();
+
+        Assert.IsNull(normalProvider.GetService<IsolatedDependency>());
+        Assert.IsNotNull(isolatedProvider.GetService<IsolatedDependency>());
+        Assert.IsNull(isolatedProvider.GetService<IInjectedService>());
+        Assert.IsNull(normalProvider.GetService<IgnoredDependency>());
+    }
+}
+
+[DIConfiguration]
+public static partial class TestServices
+{
+    private static void Configure()
+    {
+        DIRegistrations.Register<ConstructorDependency>();
+        DIRegistrations.Register<PropertyDependency>();
+        DIRegistrations.Register<IPlugin, FirstPlugin>();
+        DIRegistrations.Register<IPlugin, SecondPlugin>();
+        DIRegistrations.RegisterLazySingleton<LazyDependency>();
+        DIRegistrations.Register<IInjectedService, InjectedService>();
+        DIRegistrations.RegisterScoped<ScopedDependency>();
+    }
+}
+
+[DIConfiguration]
+public static partial class IsolatedServices
+{
+    private static void Configure()
+    {
+        DIRegistrations.Register<IsolatedDependency>();
+    }
 }
 
 public sealed class ConstructorDependency;
@@ -65,6 +103,10 @@ public sealed class PropertyDependency;
 public sealed class LazyDependency;
 
 public sealed class ScopedDependency;
+
+public sealed class IgnoredDependency;
+
+public sealed class IsolatedDependency;
 
 public interface IPlugin;
 

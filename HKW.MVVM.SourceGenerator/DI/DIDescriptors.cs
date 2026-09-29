@@ -53,4 +53,22 @@ internal static class DIDescriptors
         DiagnosticSeverity.Error,
         true
     );
+
+    public static readonly DiagnosticDescriptor RegistrationOutsideConfiguration = new(
+        "HKWDI006",
+        "Dependency injection registration is outside a configuration",
+        "Dependency injection registration must be declared inside a class marked with [DIConfiguration]",
+        Category,
+        DiagnosticSeverity.Warning,
+        true
+    );
+
+    public static readonly DiagnosticDescriptor InvalidConfigurationType = new(
+        "HKWDI007",
+        "Dependency injection configuration type is invalid",
+        "Type '{0}' must be a top-level, non-generic, static partial class",
+        Category,
+        DiagnosticSeverity.Error,
+        true
+    );
 }

@@ -1,6 +1,10 @@
+using System.CodeDom.Compiler;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
+using HKW.SourceGeneratorUtils;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
@@ -9,15 +13,26 @@ namespace HKW.MVVM.SourceGenerator;
 [Generator]
 internal sealed class DIGenerator : IIncrementalGenerator
 {
-    private const string RegistrationsTypeName =
-        "HKW.MVVM.SourceGenerator.DependencyInjectionRegistrations";
+    private const string RegistrationsTypeName = "HKW.MVVM.SourceGenerator.DIRegistrations";
+    private const string ConfigurationAttributeName =
+        "HKW.MVVM.SourceGenerator.DIConfigurationAttribute";
     private const string ConstructorAttributeName =
-        "HKW.MVVM.SourceGenerator.DependencyInjectionConstructorAttribute";
-    private const string PropertyAttributeName =
-        "HKW.MVVM.SourceGenerator.DependencyInjectionPropertyAttribute";
+        "HKW.MVVM.SourceGenerator.DIConstructorAttribute";
+    private const string PropertyAttributeName = "HKW.MVVM.SourceGenerator.DIPropertyAttribute";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        var configurations = context
+            .SyntaxProvider.ForAttributeWithMetadataName(
+                ConfigurationAttributeName,
+                static (node, _) => node is ClassDeclarationSyntax,
+                static (attributeContext, _) =>
+                    new ConfigurationInfo(
+                        (INamedTypeSymbol)attributeContext.TargetSymbol,
+                        (ClassDeclarationSyntax)attributeContext.TargetNode
+                    )
+            )
+            .Collect();
         var registrations = context
             .SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => node is InvocationExpressionSyntax,
@@ -28,9 +43,9 @@ internal sealed class DIGenerator : IIncrementalGenerator
             .Collect();
 
         context.RegisterSourceOutput(
-            context.CompilationProvider.Combine(registrations),
+            context.CompilationProvider.Combine(configurations).Combine(registrations),
             static (productionContext, input) =>
-                Generate(productionContext, input.Left, input.Right)
+                Generate(productionContext, input.Left.Left, input.Left.Right, input.Right)
         );
     }
 
@@ -43,6 +58,11 @@ internal sealed class DIGenerator : IIncrementalGenerator
             return null;
         if (method.TypeArguments.Length is < 1 or > 2)
             return null;
+        if (
+            context.SemanticModel.GetEnclosingSymbol(invocation.SpanStart)
+            is not ISymbol enclosingSymbol
+        )
+            return null;
 
         var lifetime = method.Name switch
         {
@@ -54,12 +74,10 @@ internal sealed class DIGenerator : IIncrementalGenerator
         if (lifetime == ServiceLifetime.None)
             return null;
 
-        var serviceType = method.TypeArguments[0];
-        var implementationType =
-            method.TypeArguments.Length == 1 ? serviceType : method.TypeArguments[1];
         return new Registration(
-            serviceType,
-            implementationType,
+            enclosingSymbol.ContainingType,
+            method.TypeArguments[0],
+            method.TypeArguments.Length == 1 ? method.TypeArguments[0] : method.TypeArguments[1],
             lifetime,
             invocation.GetLocation()
         );
@@ -68,57 +86,169 @@ internal sealed class DIGenerator : IIncrementalGenerator
     private static void Generate(
         SourceProductionContext context,
         Compilation compilation,
+        ImmutableArray<ConfigurationInfo> configurations,
         ImmutableArray<Registration> registrations
     )
     {
-        var body = new StringBuilder();
-        foreach (var registration in registrations)
+        var configurationSymbols = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        foreach (var configuration in configurations)
+            configurationSymbols.Add(configuration.Symbol);
+        foreach (
+            var registration in registrations.Where(registration =>
+                registration.ContainingType is null
+                || configurationSymbols.Contains(registration.ContainingType) is false
+            )
+        )
         {
-            if (!TryCreateFactory(context, compilation, registration, out var factory))
-                continue;
-
-            var method = registration.Lifetime switch
-            {
-                ServiceLifetime.Transient => "AddTransient",
-                ServiceLifetime.Scoped => "AddScoped",
-                _ => "AddSingleton",
-            };
-            body.Append(
-                    "        global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions."
-                )
-                .Append(method)
-                .Append('<')
-                .Append(Display(registration.ServiceType))
-                .AppendLine(">(services, serviceProvider =>")
-                .AppendLine("        {")
-                .Append("            return ")
-                .Append(factory)
-                .AppendLine(";")
-                .AppendLine("        });");
+            var diagnostic = Diagnostic.Create(
+                DIDescriptors.RegistrationOutsideConfiguration,
+                registration.Location
+            );
+            context.ReportDiagnostic(diagnostic);
         }
 
-        var source = $$"""
-            // <auto-generated/>
-            #nullable enable
-            namespace HKW.MVVM.SourceGenerator
+        var generatedConfigurations = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        foreach (var configuration in configurations)
+        {
+            if (generatedConfigurations.Add(configuration.Symbol) is false)
+                continue;
+            if (IsValidConfiguration(configuration) is false)
             {
-                /// <summary>Applies dependency injection registrations declared in this assembly.</summary>
-                public static class GeneratedServiceCollectionExtensions
-                {
-                    /// <summary>Adds all source-generated service registrations.</summary>
-                    public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddGeneratedServices(
-                        this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)
-                    {
-                        if (services is null)
-                            throw new global::System.ArgumentNullException(nameof(services));
-            {{body}}            return services;
-                    }
-                }
+                var diagnostic = Diagnostic.Create(
+                    DIDescriptors.InvalidConfigurationType,
+                    configuration.Syntax.Identifier.GetLocation(),
+                    configuration.Symbol.ToDisplayString()
+                );
+                context.ReportDiagnostic(diagnostic);
+                continue;
             }
-            """;
+
+            AddConfigurationSource(
+                context,
+                compilation,
+                configuration,
+                registrations
+                    .Where(registration =>
+                        SymbolEqualityComparer.Default.Equals(
+                            registration.ContainingType,
+                            configuration.Symbol
+                        )
+                    )
+                    .OrderBy(registration => registration.Location.SourceTree?.FilePath)
+                    .ThenBy(registration => registration.Location.SourceSpan.Start)
+            );
+        }
+    }
+
+    private static bool IsValidConfiguration(ConfigurationInfo configuration) =>
+        configuration.Symbol.IsStatic
+        && configuration.Symbol.Arity == 0
+        && configuration.Symbol.ContainingType is null
+        && configuration.Syntax.Modifiers.Any(SyntaxKind.PartialKeyword);
+
+    private static void AppendRegistration(
+        SourceProductionContext context,
+        Compilation compilation,
+        IndentedTextWriter writer,
+        Registration registration
+    )
+    {
+        if (TryCreateFactory(context, compilation, registration, out var factory) is false)
+            return;
+
+        var method = registration.Lifetime switch
+        {
+            ServiceLifetime.Transient => "AddTransient",
+            ServiceLifetime.Scoped => "AddScoped",
+            _ => "AddSingleton",
+        };
+        writer.Write(
+            "global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions."
+        );
+        writer.Write(method);
+        writer.Write('<');
+        writer.Write(registration.ServiceType.GetFullName());
+        writer.WriteLine(">(services, serviceProvider =>");
+        writer.WriteLine("{");
+        writer.Indent++;
+        writer.Write("return ");
+        writer.Write(factory);
+        writer.WriteLine(";");
+        writer.Indent--;
+        writer.WriteLine("});");
+    }
+
+    private static void AddConfigurationSource(
+        SourceProductionContext context,
+        Compilation compilation,
+        ConfigurationInfo configuration,
+        IEnumerable<Registration> registrations
+    )
+    {
+        var stringStream = new StringWriter();
+        var writer = new IndentedTextWriter(stringStream);
+        var namespaceName = configuration.Symbol.ContainingNamespace.IsGlobalNamespace
+            ? null
+            : configuration.Symbol.ContainingNamespace.ToDisplayString();
+        var accessibility =
+            configuration.Symbol.DeclaredAccessibility == Accessibility.Public
+                ? "public"
+                : "internal";
+
+        writer.WriteLine("// <auto-generated/>");
+        writer.WriteLine("#nullable enable");
+        if (namespaceName is not null)
+        {
+            writer.WriteLine($"namespace {namespaceName}");
+            writer.WriteLine("{");
+            writer.Indent++;
+        }
+        writer.WriteLine($"{accessibility} static partial class {configuration.Symbol.Name}");
+        writer.WriteLine("{");
+        writer.Indent++;
+        writer.WriteLine("/// <summary>创建服务集合并应用此配置中的全部源生成注册</summary>");
+        writer.WriteLine(
+            "public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Build()"
+        );
+        writer.WriteLine("{");
+        writer.Indent++;
+        writer.WriteLine(
+            "return Build(new global::Microsoft.Extensions.DependencyInjection.ServiceCollection());"
+        );
+        writer.Indent--;
+        writer.WriteLine("}");
+        writer.WriteLine();
+        writer.WriteLine("/// <summary>将此配置中的全部源生成注册应用到指定服务集合</summary>");
+        writer.WriteLine(
+            "public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Build("
+        );
+        writer.Indent++;
+        writer.WriteLine(
+            "global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)"
+        );
+        writer.Indent--;
+        writer.WriteLine("{");
+        writer.Indent++;
+        writer.WriteLine("if (services is null)");
+        writer.Indent++;
+        writer.WriteLine("throw new global::System.ArgumentNullException(nameof(services));");
+        writer.Indent--;
+        foreach (var registration in registrations)
+            AppendRegistration(context, compilation, writer, registration);
+        writer.WriteLine("return services;");
+        writer.Indent--;
+        writer.WriteLine("}");
+        writer.Indent--;
+        writer.WriteLine("}");
+        if (namespaceName is not null)
+        {
+            writer.Indent--;
+            writer.WriteLine("}");
+        }
+
         context.AddSource(
-            "HKW.MVVM.DependencyInjection.g.cs",
-            SourceText.From(source, Encoding.UTF8)
+            $"{SanitizeHintName(configuration.Symbol.ToDisplayString())}.DI.g.cs",
+            stringStream.ToString()
         );
     }
 
@@ -137,30 +267,29 @@ internal sealed class DIGenerator : IIncrementalGenerator
             || implementationType.IsUnboundGenericType
         )
         {
-            context.ReportDiagnostic(
-                Diagnostic.Create(
-                    DIDescriptors.InvalidImplementationType,
-                    registration.Location,
-                    Display(registration.ImplementationType)
-                )
+            var diagnostic = Diagnostic.Create(
+                DIDescriptors.InvalidImplementationType,
+                registration.Location,
+                registration.ImplementationType.GetName()
             );
+            context.ReportDiagnostic(diagnostic);
             return false;
         }
 
         if (
-            !compilation
+            compilation
                 .ClassifyCommonConversion(implementationType, registration.ServiceType)
                 .IsImplicit
+            is false
         )
         {
-            context.ReportDiagnostic(
-                Diagnostic.Create(
-                    DIDescriptors.IncompatibleServiceType,
-                    registration.Location,
-                    Display(implementationType),
-                    Display(registration.ServiceType)
-                )
+            var diagnostic = Diagnostic.Create(
+                DIDescriptors.IncompatibleServiceType,
+                registration.Location,
+                implementationType.GetName(),
+                registration.ServiceType.GetName()
             );
+            context.ReportDiagnostic(diagnostic);
             return false;
         }
 
@@ -168,32 +297,30 @@ internal sealed class DIGenerator : IIncrementalGenerator
         var markedConstructors = constructors
             .Where(static constructor => HasAttribute(constructor, ConstructorAttributeName))
             .ToImmutableArray();
-        IMethodSymbol? constructor;
+        IMethodSymbol constructor;
         if (constructors.Length == 1 && markedConstructors.Length <= 1)
             constructor = constructors[0];
         else if (markedConstructors.Length == 1)
             constructor = markedConstructors[0];
         else
         {
-            context.ReportDiagnostic(
-                Diagnostic.Create(
-                    DIDescriptors.AmbiguousConstructor,
-                    registration.Location,
-                    Display(implementationType)
-                )
+            var diagnostic = Diagnostic.Create(
+                DIDescriptors.AmbiguousConstructor,
+                registration.Location,
+                implementationType.GetName()
             );
+            context.ReportDiagnostic(diagnostic);
             return false;
         }
 
-        if (!IsAccessible(constructor.DeclaredAccessibility))
+        if (constructor.DeclaredAccessibility < Accessibility.Internal)
         {
-            context.ReportDiagnostic(
-                Diagnostic.Create(
-                    DIDescriptors.InaccessibleConstructor,
-                    constructor.Locations.FirstOrDefault() ?? registration.Location,
-                    Display(implementationType)
-                )
+            var diagnostic = Diagnostic.Create(
+                DIDescriptors.InaccessibleConstructor,
+                constructor.Locations.FirstOrDefault() ?? registration.Location,
+                implementationType.GetName()
             );
+            context.ReportDiagnostic(diagnostic);
             return false;
         }
 
@@ -208,40 +335,38 @@ internal sealed class DIGenerator : IIncrementalGenerator
                 property.IsStatic
                 || property.IsIndexer
                 || property.SetMethod is null
-                || !IsAccessible(property.SetMethod.DeclaredAccessibility)
+                || property.SetMethod.DeclaredAccessibility < Accessibility.Internal
             )
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
-                        DIDescriptors.InvalidInjectedProperty,
-                        property.Locations.FirstOrDefault() ?? registration.Location,
-                        property.Name,
-                        Display(implementationType)
-                    )
+                var diagnostic = Diagnostic.Create(
+                    DIDescriptors.InvalidInjectedProperty,
+                    property.Locations.FirstOrDefault() ?? registration.Location,
+                    property.Name,
+                    implementationType.GetName()
                 );
+                context.ReportDiagnostic(diagnostic);
                 return false;
             }
         }
 
         var builder = new StringBuilder()
             .Append("new ")
-            .Append(Display(implementationType))
+            .Append(implementationType.GetFullName())
             .Append('(')
             .Append(arguments)
             .Append(')');
         if (properties.Count > 0)
         {
-            builder.AppendLine().AppendLine("            {");
+            builder.Append(" { ");
             foreach (var property in properties)
             {
                 builder
-                    .Append("                ")
                     .Append(EscapeIdentifier(property.Name))
                     .Append(" = ")
                     .Append(Resolve(property.Type))
-                    .AppendLine(",");
+                    .Append(", ");
             }
-            builder.Append("            }");
+            builder.Append('}');
         }
         factory = builder.ToString();
         return true;
@@ -255,12 +380,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
         var properties = new List<IPropertySymbol>();
         for (var type = implementationType; type is not null; type = type.BaseType)
         {
-            if (
-                !SymbolEqualityComparer.Default.Equals(
-                    type.ContainingAssembly,
-                    compilation.Assembly
-                )
-            )
+            if (type.ContainingAssembly.SymbolEquals(compilation.Assembly) is false)
                 break;
             properties.AddRange(
                 type.GetMembers()
@@ -280,7 +400,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
         )
         {
             var definition = namedType.OriginalDefinition.ToDisplayString();
-            var argument = Display(namedType.TypeArguments[0]);
+            var argument = namedType.TypeArguments[0].GetFullName();
             if (definition == "System.Lazy<T>")
             {
                 return $"new global::System.Lazy<{argument}>(() => global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{argument}>(serviceProvider))";
@@ -290,7 +410,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
                 return $"global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetServices<{argument}>(serviceProvider)";
             }
         }
-        return $"global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{Display(type)}>(serviceProvider)";
+        return $"global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{type.GetFullName()}>(serviceProvider)";
     }
 
     private static bool HasAttribute(ISymbol symbol, string attributeName) =>
@@ -298,20 +418,11 @@ internal sealed class DIGenerator : IIncrementalGenerator
             .GetAttributes()
             .Any(attribute => attribute.AttributeClass?.ToDisplayString() == attributeName);
 
-    private static bool IsAccessible(Accessibility accessibility) =>
-        accessibility
-            is Accessibility.Public
-                or Accessibility.Internal
-                or Accessibility.ProtectedOrInternal;
-
-    private static string Display(ITypeSymbol type) =>
-        type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
     private static string EscapeIdentifier(string name) =>
-        Microsoft.CodeAnalysis.CSharp.SyntaxFacts.GetKeywordKind(name)
-        != Microsoft.CodeAnalysis.CSharp.SyntaxKind.None
-            ? "@" + name
-            : name;
+        SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
+
+    private static string SanitizeHintName(string name) =>
+        new(name.Select(character => char.IsLetterOrDigit(character) ? character : '_').ToArray());
 
     private enum ServiceLifetime
     {
@@ -321,13 +432,21 @@ internal sealed class DIGenerator : IIncrementalGenerator
         Singleton,
     }
 
+    private sealed class ConfigurationInfo(INamedTypeSymbol symbol, ClassDeclarationSyntax syntax)
+    {
+        public INamedTypeSymbol Symbol { get; } = symbol;
+        public ClassDeclarationSyntax Syntax { get; } = syntax;
+    }
+
     private sealed class Registration(
+        INamedTypeSymbol? containingType,
         ITypeSymbol serviceType,
         ITypeSymbol implementationType,
         ServiceLifetime lifetime,
         Location location
     )
     {
+        public INamedTypeSymbol? ContainingType { get; } = containingType;
         public ITypeSymbol ServiceType { get; } = serviceType;
         public ITypeSymbol ImplementationType { get; } = implementationType;
         public ServiceLifetime Lifetime { get; } = lifetime;

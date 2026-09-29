@@ -1,13 +1,25 @@
 # HKW.MVVM.SourceGenerator
 
-基于 `CommunityToolkit.Mvvm` 的 MVVM 源代码生成器。项目结合 Roslyn Source Generator 与 Fody，在编译期间为 `ObservableObject` 派生类生成属性通知、命令和响应式计算属性相关代码，并在程序集构建阶段完成必要的 IL 重写。
+基于 `CommunityToolkit.Mvvm` 的 MVVM 源代码生成器，并附带一套独立的依赖注入源生成器。项目结合 Roslyn Source Generator 与 Fody：MVVM 部分在编译期间为 `ObservableObject` 派生类生成属性通知、命令和响应式计算属性相关代码，并在程序集构建阶段完成必要的 IL 重写；DI 部分则完全基于 Roslyn Source Generator，为 `Microsoft.Extensions.DependencyInjection` 生成显式的 `IServiceCollection` 注册工厂代码，不涉及 Fody 或反射。
+
+两部分相互独立，可以只使用其中一个。
 
 ## 功能
+
+MVVM：
 
 - 使用 `[ObservableProperty]` 为可写属性生成属性变更通知逻辑。
 - 使用 `[NotifyPropertyChangeFrom]` 将一个或多个属性的变更传播到只读计算属性，并支持缓存计算结果。
 - 使用 `CommunityToolkit.Mvvm.Input.RelayCommand` 生成同步或异步命令属性，支持 `CanExecute` 和一个命令参数。
 - 使用 `[ObservableAsProperty]` 将 `HKW.MVVM` 的 `ObservableAsPropertyHelper<T>` 暴露为只读属性。
+
+依赖注入：
+
+- 使用 `DIRegistrations.Register*` 系列方法在编译时标记服务注册，支持瞬态、作用域、单例和延迟单例。
+- 使用 `[DIConfiguration]` 声明配置类型，生成器为其生成 `Build()` / `Build(IServiceCollection)`，直接产出面向 `Microsoft.Extensions.DependencyInjection` 的显式工厂代码。
+- 使用 `[DIConstructor]` 在多构造函数类型中选择注入使用的构造函数。
+- 使用 `[DIProperty]` 标记需要属性注入的属性，支持 `init` 访问器。
+- 自动识别构造函数参数中的 `Lazy<T>` 和 `IEnumerable<T>`，分别映射为延迟解析和多实现解析。
 
 ## 安装
 
@@ -16,7 +28,7 @@
 ```xml
 <ItemGroup>
   <PackageReference Include="HKW.MVVM" Version="0.1.2" />
-  <PackageReference Include="HKW.MVVM.SourceGenerator" Version="0.1.3" />
+  <PackageReference Include="HKW.MVVM.SourceGenerator" Version="0.1.4" />
   <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" PrivateAssets="all" />
   <PackageReference Include="Fody" Version="6.9.3" PrivateAssets="all" />
 </ItemGroup>
@@ -373,7 +385,139 @@ Fody 会将原属性 getter 重写为读取 helper 的 `Value`：
 public string UpperName => UserViewModelObservableHelper._upperNameOAPH.Value;
 ```
 
+### 诊断
+
+| ID | 级别 | 说明 |
+|---|---|---|
+| `HKWMVVM0001` | Error | 类型继承了 `ObservableObject`，但没有声明为 `partial` |
+| `HKWMVVM0002` | Error | `[ObservableProperty]` 标注的属性没有 setter |
+| `HKWMVVM0003` | Error | `[NotifyPropertyChangeFrom]` 或 `[ObservableAsProperty]` 标注的属性带有 setter |
+| `HKWMVVM0004` | Error | `[RelayCommand]` 标注的方法参数个数超过 1 个 |
+
+## 依赖注入生成
+
+`DIGenerator` 是独立于 MVVM 部分的源生成器，基于标记 API 收集当前程序集内的服务注册声明，并为每个标注 `[DIConfiguration]` 的类型生成显式的 `Microsoft.Extensions.DependencyInjection.IServiceCollection` 注册代码。整个过程只产生普通 C# 代码，不依赖反射，也不经过 Fody。
+
+### 声明配置
+
+```csharp
+using HKW.MVVM.SourceGenerator;
+
+[DIConfiguration]
+public static partial class AppServices
+{
+    private static void Configure()
+    {
+        DIRegistrations.Register<ILogger, ConsoleLogger>();
+        DIRegistrations.RegisterScoped<IRequestContext, RequestContext>();
+        DIRegistrations.RegisterLazySingleton<ICache, MemoryCache>();
+    }
+}
+```
+
+配置类型必须是：
+
+- 顶层类型（不能是嵌套类型）；
+- `static`；
+- `partial`；
+- 非泛型。
+
+不满足以上任意一点会触发 `HKWDI007`。
+
+生成器会为该类型生成两个方法：
+
+```csharp
+public static partial class AppServices
+{
+    public static IServiceCollection Build();
+    public static IServiceCollection Build(IServiceCollection services);
+}
+```
+
+`Build()` 内部创建一个新的 `ServiceCollection` 并调用 `Build(IServiceCollection)`；`Build(IServiceCollection)` 接受一个已存在的服务集合，写入注册后返回同一个实例，便于和其他注册来源组合：
+
+```csharp
+var services = AppServices.Build();
+// 或者传入自定义的服务集合
+var services = new ServiceCollection();
+AppServices.Build(services);
+```
+
+`DIRegistrations.Register*` 只是编译期标记方法，本身不执行任何操作。生成器会扫描整个编译中的调用，不要求方法一定会被执行到，也不区分调用是否可达。若这些标记方法出现在未标注 `[DIConfiguration]` 的类型中，会触发 `HKWDI006` 警告，且该调用不会被任何配置收集，也不会生成对应注册。
+
+### 生命周期
+
+| 标记方法 | 生命周期 | 对应 `IServiceCollection` 扩展 |
+|---|---|---|
+| `Register<T>()` / `Register<TService, TImplementation>()` | Transient | `AddTransient` |
+| `RegisterScoped<T>()` / `RegisterScoped<TService, TImplementation>()` | Scoped | `AddScoped` |
+| `RegisterSingleton<T>()` / `RegisterSingleton<TService, TImplementation>()` | Singleton | `AddSingleton` |
+| `RegisterLazySingleton<T>()` / `RegisterLazySingleton<TService, TImplementation>()` | Singleton | `AddSingleton` |
+
+单类型重载（如 `Register<T>()`）等价于 `Register<T, T>()`，把 `T` 既作为服务类型也作为实现类型注册。
+
+### 构造函数选择
+
+- 实现类型只有一个实例构造函数时，直接使用它。
+- 有多个实例构造函数时，必须且只能有一个标注 `[DIConstructor]`，否则报 `HKWDI001`。
+- 选中的构造函数必须是 `public`、`internal` 或 `protected internal`，否则报 `HKWDI003`。
+
+```csharp
+public sealed class Greeter
+{
+    public Greeter() { }
+
+    [DIConstructor]
+    internal Greeter(ILogger logger)
+    {
+        ...
+    }
+}
+```
+
+### 属性注入
+
+标注 `[DIProperty]` 的属性会在对象初始化器中被赋值：
+
+```csharp
+public sealed class Greeter
+{
+    [DIProperty]
+    public ILogger Logger { get; init; } = null!;
+}
+```
+
+- 只扫描实现类型及其在**当前程序集**内声明的基类；引用其他程序集的基类会被忽略。
+- 属性必须具有 `public`、`internal` 或 `protected internal` 的 setter（含 `init`），否则报 `HKWDI002`，且该服务的整个注册都会被跳过。
+- 不支持静态属性和索引器。
+
+### 参数解析
+
+构造函数参数和标注属性按以下规则解析：
+
+| 类型 | 生成的解析代码 |
+|---|---|
+| `T` | `serviceProvider.GetRequiredService<T>()` |
+| `Lazy<T>` | `new Lazy<T>(() => serviceProvider.GetRequiredService<T>())` |
+| `IEnumerable<T>` | `serviceProvider.GetServices<T>()` |
+
+`Lazy<T>` 和 `IEnumerable<T>` 之外的其他集合类型（如 `List<T>`、数组）按普通服务解析，不做特殊处理。
+
+### 诊断
+
+| ID | 级别 | 说明 |
+|---|---|---|
+| `HKWDI001` | Error | 实现类型有多个构造函数，但没有一个标注 `[DIConstructor]` |
+| `HKWDI002` | Error | 标注 `[DIProperty]` 的属性缺少可访问的 setter |
+| `HKWDI003` | Error | 选中的构造函数可访问性低于 `internal` |
+| `HKWDI004` | Error | 实现类型不是非抽象的封闭类 |
+| `HKWDI005` | Error | 实现类型不能转换为服务类型 |
+| `HKWDI006` | Warning | 注册标记方法出现在未标注 `[DIConfiguration]` 的类型中，该调用会被忽略 |
+| `HKWDI007` | Error | `[DIConfiguration]` 标注的类型不是顶层、静态、非泛型的 `partial` 类 |
+
 ## 使用限制
+
+MVVM：
 
 - 目标类必须继承 `CommunityToolkit.Mvvm.ComponentModel.ObservableObject`，并声明为 `partial`。
 - `[ObservableProperty]` 只能用于带 setter 的属性。
@@ -382,11 +526,19 @@ public string UpperName => UserViewModelObservableHelper._upperNameOAPH.Value;
 - 使用 `[ObservableAsProperty]` 时需要引用 `HKW.MVVM`，且属性表达式必须包含 `.ToProperty(...)` 并以 `.Value` 或 `.Value!` 结束。
 - 必须移除 `CommunityToolkit.Mvvm` 自带的源生成器，否则可能产生重复成员或编译冲突。
 
+依赖注入：
+
+- `[DIConfiguration]` 只能标注顶层、`static`、`partial`、非泛型类型。
+- `DIRegistrations.Register*` 调用必须直接出现在配置类型内部（可以在其私有方法中），否则不会生效并产生警告。
+- 泛型服务/实现类型、开放泛型定义暂不支持。
+- 引用其他程序集的实现类型只有在只有一个可访问构造函数时才能使用；`[DIConstructor]`/`[DIProperty]` 只对当前编译中的类型成员生效。
+
 ## 开发与验证
 
 - 仓库包含源生成器、Fody weaver 和测试项目。
 - 使用 `dotnet build HKW.MVVM.SourceGenerator` 即可编译完整的程序集。
-- 因 Fody 的特殊性，此项目的单元测试仅能在 VisualStudio 中进行编译测试, 无法使用 `dotnet build` 命令编译测试。
+- 因 Fody 的特殊性，MVVM 部分的单元测试仅能在 Visual Studio 中进行编译测试，无法使用 `dotnet build` 命令编译测试。
+- 依赖注入部分不依赖 Fody，可以通过 `dotnet build -p:DisableFody=true` 和 `dotnet test -p:DisableFody=true` 单独编译和运行 DI 相关测试。
 
 ## 许可证
 
