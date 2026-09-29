@@ -66,7 +66,7 @@ internal static class DIDescriptors
     public static readonly DiagnosticDescriptor InvalidConfigurationType = new(
         "HKWDI007",
         "Dependency injection configuration type is invalid",
-        "Type '{0}' must be a top-level, non-generic, static partial class",
+        "Type '{0}' must be a top-level, non-generic, non-abstract partial class inheriting DIConfigurationBase with an accessible parameterless constructor",
         Category,
         DiagnosticSeverity.Error,
         true

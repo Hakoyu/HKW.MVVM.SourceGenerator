@@ -6,17 +6,10 @@ namespace HKW.MVVM.SourceGeneratorTest;
 [TestClass]
 public sealed class DIGeneratorTests
 {
-#pragma warning disable HKWDI006
-    private static void RegisterWithoutConfiguration()
-    {
-        DIRegistrations.Register<IgnoredDependency>();
-    }
-#pragma warning restore HKWDI006
-
     [TestMethod]
     public void UsesSelectedConstructorAndInjectsProperty()
     {
-        using var provider = TestServices.Build().BuildServiceProvider();
+        using var provider = TestServices.Instance.Build().BuildServiceProvider();
 
         var service = provider.GetRequiredService<IInjectedService>();
 
@@ -32,7 +25,7 @@ public sealed class DIGeneratorTests
     {
         var services = new ServiceCollection();
 
-        var result = TestServices.Build(services);
+        var result = TestServices.Instance.Build(services);
         using var provider = result.BuildServiceProvider();
 
         Assert.AreSame(services, result);
@@ -62,38 +55,69 @@ public sealed class DIGeneratorTests
     [TestMethod]
     public void RegistrationsAreScopedToConfigurationType()
     {
-        using var normalProvider = TestServices.Build().BuildServiceProvider();
-        using var isolatedProvider = IsolatedServices.Build().BuildServiceProvider();
+        using var normalProvider = TestServices.Instance.Build().BuildServiceProvider();
+        using var isolatedProvider = IsolatedServices.Instance.Build().BuildServiceProvider();
 
         Assert.IsNull(normalProvider.GetService<IsolatedDependency>());
         Assert.IsNotNull(isolatedProvider.GetService<IsolatedDependency>());
         Assert.IsNull(isolatedProvider.GetService<IInjectedService>());
         Assert.IsNull(normalProvider.GetService<IgnoredDependency>());
     }
-}
 
-[DIConfiguration]
-public static partial class TestServices
-{
-    private static void Configure()
+    [TestMethod]
+    public void ConfigurationRunsCustomOperationsAndOverridesRegistration()
     {
-        DIRegistrations.Register<ConstructorDependency>();
-        DIRegistrations.Register<PropertyDependency>();
-        DIRegistrations.Register<IPlugin, FirstPlugin>();
-        DIRegistrations.Register<IPlugin, SecondPlugin>();
-        DIRegistrations.RegisterLazySingleton<LazyDependency>();
-        DIRegistrations.Register<IInjectedService, InjectedService>();
-        DIRegistrations.RegisterScoped<ScopedDependency>();
+        var services = TestServices.Instance.Build();
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsNotNull(provider.GetService<CustomDependency>());
+        Assert.IsTrue(TestServices.Instance.RegistrationCount > 0);
     }
 }
 
 [DIConfiguration]
-public static partial class IsolatedServices
+public partial class TestServices : DIConfigurationBase
 {
-    private static void Configure()
+    public int RegistrationCount { get; private set; }
+
+    protected override void Configure(IServiceCollection services)
     {
-        DIRegistrations.Register<IsolatedDependency>();
+        services.AddSingleton<CustomDependency>();
+        Register<ConstructorDependency>();
+        Register<PropertyDependency>();
+        Register<IPlugin, FirstPlugin>();
+        Register<IPlugin, SecondPlugin>();
+        RegisterLazySingleton<LazyDependency>();
+        Register<IInjectedService, InjectedService>();
+        RegisterScoped<ScopedDependency>();
     }
+
+    protected override void Register<T>(IServiceCollection services, Func<IServiceProvider, T> factory)
+    {
+        RegistrationCount++;
+        base.Register(services, factory);
+    }
+}
+
+[DIConfiguration]
+public partial class IsolatedServices : DIConfigurationBase
+{
+    protected override void Configure(IServiceCollection services)
+    {
+        Register<IsolatedDependency>();
+    }
+}
+
+public sealed class UnconfiguredServices : DIConfigurationBase
+{
+#pragma warning disable HKWDI006
+    private void RegisterWithoutConfiguration()
+    {
+        Register<IgnoredDependency>();
+    }
+#pragma warning restore HKWDI006
+
+    public override IServiceCollection Build(IServiceCollection services) => services;
 }
 
 public sealed class ConstructorDependency;
@@ -105,6 +129,8 @@ public sealed class LazyDependency;
 public sealed class ScopedDependency;
 
 public sealed class IgnoredDependency;
+
+public sealed class CustomDependency;
 
 public sealed class IsolatedDependency;
 

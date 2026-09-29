@@ -13,7 +13,7 @@ namespace HKW.MVVM.SourceGenerator;
 [Generator]
 internal sealed class DIGenerator : IIncrementalGenerator
 {
-    private const string RegistrationsTypeName = "HKW.MVVM.SourceGenerator.DIRegistrations";
+    private const string RegistrationsTypeName = "HKW.MVVM.SourceGenerator.DIConfigurationBase";
     private const string ConfigurationAttributeName =
         "HKW.MVVM.SourceGenerator.DIConfigurationAttribute";
     private const string ConstructorAttributeName =
@@ -56,7 +56,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
             return null;
         if (method.ContainingType.ToDisplayString() != RegistrationsTypeName)
             return null;
-        if (method.TypeArguments.Length is < 1 or > 2)
+        if (method.Parameters.Length != 0 || method.TypeArguments.Length is < 1 or > 2)
             return null;
         if (
             context.SemanticModel.GetEnclosingSymbol(invocation.SpanStart)
@@ -79,6 +79,8 @@ internal sealed class DIGenerator : IIncrementalGenerator
             method.TypeArguments[0],
             method.TypeArguments.Length == 1 ? method.TypeArguments[0] : method.TypeArguments[1],
             lifetime,
+            method.Name,
+            method.TypeArguments.Length == 2,
             invocation.GetLocation()
         );
     }
@@ -141,9 +143,15 @@ internal sealed class DIGenerator : IIncrementalGenerator
     }
 
     private static bool IsValidConfiguration(ConfigurationInfo configuration) =>
-        configuration.Symbol.IsStatic
+        configuration.Symbol.IsStatic is false
+        && configuration.Symbol.IsAbstract is false
         && configuration.Symbol.Arity == 0
         && configuration.Symbol.ContainingType is null
+        && configuration.Symbol.BaseType?.ToDisplayString() == RegistrationsTypeName
+        && configuration.Symbol.InstanceConstructors.Any(constructor =>
+            constructor.Parameters.Length == 0
+            && constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
+        )
         && configuration.Syntax.Modifiers.Any(SyntaxKind.PartialKeyword);
 
     private static void AppendRegistration(
@@ -156,18 +164,14 @@ internal sealed class DIGenerator : IIncrementalGenerator
         if (TryCreateFactory(context, compilation, registration, out var factory) is false)
             return;
 
-        var method = registration.Lifetime switch
-        {
-            ServiceLifetime.Transient => "AddTransient",
-            ServiceLifetime.Scoped => "AddScoped",
-            _ => "AddSingleton",
-        };
-        writer.Write(
-            "global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions."
-        );
-        writer.Write(method);
+        writer.Write(registration.MethodName);
         writer.Write('<');
         writer.Write(registration.ServiceType.GetFullName());
+        if (registration.IsServiceMapping)
+        {
+            writer.Write(", ");
+            writer.Write(registration.ImplementationType.GetFullName());
+        }
         writer.WriteLine(">(services, serviceProvider =>");
         writer.WriteLine("{");
         writer.Indent++;
@@ -203,24 +207,15 @@ internal sealed class DIGenerator : IIncrementalGenerator
             writer.WriteLine("{");
             writer.Indent++;
         }
-        writer.WriteLine($"{accessibility} static partial class {configuration.Symbol.Name}");
+        writer.WriteLine($"{accessibility} partial class {configuration.Symbol.Name}");
         writer.WriteLine("{");
         writer.Indent++;
-        writer.WriteLine("/// <summary>创建服务集合并应用此配置中的全部源生成注册</summary>");
-        writer.WriteLine(
-            "public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Build()"
-        );
-        writer.WriteLine("{");
-        writer.Indent++;
-        writer.WriteLine(
-            "return Build(new global::Microsoft.Extensions.DependencyInjection.ServiceCollection());"
-        );
-        writer.Indent--;
-        writer.WriteLine("}");
+        writer.WriteLine("/// <summary>此配置的单例实例</summary>");
+        writer.WriteLine($"public static {configuration.Symbol.Name} Instance {{ get; }} = new();");
         writer.WriteLine();
         writer.WriteLine("/// <summary>将此配置中的全部源生成注册应用到指定服务集合</summary>");
         writer.WriteLine(
-            "public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection Build("
+            "public override global::Microsoft.Extensions.DependencyInjection.IServiceCollection Build("
         );
         writer.Indent++;
         writer.WriteLine(
@@ -233,6 +228,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
         writer.Indent++;
         writer.WriteLine("throw new global::System.ArgumentNullException(nameof(services));");
         writer.Indent--;
+        writer.WriteLine("Configure(services);");
         foreach (var registration in registrations)
             AppendRegistration(context, compilation, writer, registration);
         writer.WriteLine("return services;");
@@ -443,6 +439,8 @@ internal sealed class DIGenerator : IIncrementalGenerator
         ITypeSymbol serviceType,
         ITypeSymbol implementationType,
         ServiceLifetime lifetime,
+        string methodName,
+        bool isServiceMapping,
         Location location
     )
     {
@@ -450,6 +448,8 @@ internal sealed class DIGenerator : IIncrementalGenerator
         public ITypeSymbol ServiceType { get; } = serviceType;
         public ITypeSymbol ImplementationType { get; } = implementationType;
         public ServiceLifetime Lifetime { get; } = lifetime;
+        public string MethodName { get; } = methodName;
+        public bool IsServiceMapping { get; } = isServiceMapping;
         public Location Location { get; } = location;
     }
 }

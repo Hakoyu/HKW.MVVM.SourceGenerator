@@ -52,6 +52,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
     <PackageReference
+      Include="Microsoft.Extensions.DependencyInjection.Abstractions"
+      Version="10.0.2"
+    />
+    <PackageReference
       Include="Microsoft.CodeAnalysis.Analyzers"
       Version="5.9.0"
       PrivateAssets="all"
