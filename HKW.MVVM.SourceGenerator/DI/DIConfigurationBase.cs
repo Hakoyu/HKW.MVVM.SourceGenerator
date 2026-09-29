@@ -18,10 +18,13 @@ public abstract class DIConfigurationBase
     public IServiceCollection Build() => Build(new ServiceCollection());
 
     /// <summary>将源生成注册应用到指定服务集合</summary>
-    public abstract IServiceCollection Build(IServiceCollection services);
+    public virtual IServiceCollection Build(IServiceCollection services)
+    {
+        return services;
+    }
 
     /// <summary>在源生成注册之前执行其他配置操作</summary>
-    protected virtual void Configure(IServiceCollection services) { }
+    protected abstract void Configure(IServiceCollection services);
 
     /// <summary>声明瞬态自注册</summary>
     protected void Register<T>()

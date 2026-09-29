@@ -89,10 +89,17 @@ public partial class TestServices : DIConfigurationBase
         Register<IPlugin, SecondPlugin>();
         RegisterLazySingleton<LazyDependency>();
         Register<IInjectedService, InjectedService>();
+    }
+
+    private void Foo()
+    {
         RegisterScoped<ScopedDependency>();
     }
 
-    protected override void Register<T>(IServiceCollection services, Func<IServiceProvider, T> factory)
+    protected override void Register<T>(
+        IServiceCollection services,
+        Func<IServiceProvider, T> factory
+    )
     {
         RegistrationCount++;
         base.Register(services, factory);
@@ -111,13 +118,11 @@ public partial class IsolatedServices : DIConfigurationBase
 public sealed class UnconfiguredServices : DIConfigurationBase
 {
 #pragma warning disable HKWDI006
-    private void RegisterWithoutConfiguration()
+    protected override void Configure(IServiceCollection services)
     {
         Register<IgnoredDependency>();
     }
 #pragma warning restore HKWDI006
-
-    public override IServiceCollection Build(IServiceCollection services) => services;
 }
 
 public sealed class ConstructorDependency;
