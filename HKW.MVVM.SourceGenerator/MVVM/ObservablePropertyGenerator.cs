@@ -21,16 +21,15 @@ internal class ObservablePropertyGenerator
 
     private void Execute()
     {
-        for (var i = 0; i < _classInfo.PropertySSs.Count; i++)
+        for (var i = 0; i < _classInfo.Propertys.Count; i++)
         {
-            var property = _classInfo.PropertySSs[i];
+            var property = _classInfo.Propertys[i];
             AnalyzeProperty(property);
         }
     }
 
-    private void AnalyzeProperty(PropertySS ss)
+    private void AnalyzeProperty(IPropertySymbol propertySymbol)
     {
-        ss.OutData(out var propertySyntax, out var propertySymbol);
         if (propertySymbol.GetFirstAttribute(MVVMGenerator.ObservablePropertyAttribute) is null)
             return;
         // 如果没有Set方法则异常
@@ -38,10 +37,10 @@ internal class ObservablePropertyGenerator
         {
             var diagnostic = Diagnostic.Create(
                 MVVMDescriptors.PropertyNotHaveSetMethod,
-                propertySyntax.GetLocation(),
+                propertySymbol.Locations[0],
                 nameof(MVVMGenerator.ObservablePropertyAttribute)
             );
-            GeneratorHelper.ProductionContext.ReportDiagnostic(diagnostic);
+            _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
             return;
         }
         var typeName = propertySymbol.Type.GetFullName();
@@ -50,7 +49,7 @@ internal class ObservablePropertyGenerator
         var contents = GenerateSetMethodContexts(propertySymbol);
 
         var raiseMethod = new MethodGenerateInfo(
-            GeneratorHelper.TypeVoid,
+            GeneratorHelper.VoidName,
             $"SetProperty{propertySymbol.Name}",
             contents
         )
@@ -73,9 +72,13 @@ internal class ObservablePropertyGenerator
         );
         contents.Add("    return;");
         contents.Add("var oldValue = backingField;");
-        contents.Add($"_source.OnPropertyChanging(\"{property.Name}\");");
+        contents.Add(
+            $"{ClassInfo.SourceName}.OnPropertyChanging({_classInfo.ChangeArgsCache.GetChangingArgs(property.Name)});"
+        );
         contents.Add($"var cancel = false;");
-        contents.Add($"On{property.Name}Changing(oldValue,newValue,ref cancel);");
+        contents.Add(
+            $"{ClassInfo.SourceName}.On{property.Name}Changing(oldValue,newValue,ref cancel);"
+        );
         contents.Add($"if(cancel) return;");
         if (
             _classInfo.PropertyChangingMemberByName.TryGetValue(
@@ -93,8 +96,10 @@ internal class ObservablePropertyGenerator
         contents.Add("backingField = newValue;");
         contents.Add("");
 
-        contents.Add($"_source.OnPropertyChanged(\"{property.Name}\");");
-        contents.Add($"On{property.Name}Changed(oldValue,newValue);");
+        contents.Add(
+            $"{ClassInfo.SourceName}.OnPropertyChanged({_classInfo.ChangeArgsCache.GetChangedArgs(property.Name)});"
+        );
+        contents.Add($"{ClassInfo.SourceName}.On{property.Name}Changed(oldValue,newValue);");
 
         if (
             _classInfo.PropertyChangedMemberByName.TryGetValue(
@@ -114,8 +119,8 @@ internal class ObservablePropertyGenerator
     public void GeneratePartialMethod(IPropertySymbol property)
     {
         var typeName = property.Type.GetFullName();
-        _classInfo.HelperMembers.Add(
-            new MethodGenerateInfo(GeneratorHelper.TypeVoid, $"On{property.Name}Changing", "")
+        _classInfo.Members.Add(
+            new MethodGenerateInfo(GeneratorHelper.VoidName, $"On{property.Name}Changing", "")
             {
                 Params =
                 [
@@ -126,8 +131,8 @@ internal class ObservablePropertyGenerator
                 GenerateType = MethodGenerateType.Partial,
             }
         );
-        _classInfo.HelperMembers.Add(
-            new MethodGenerateInfo(GeneratorHelper.TypeVoid, $"On{property.Name}Changed", "")
+        _classInfo.Members.Add(
+            new MethodGenerateInfo(GeneratorHelper.VoidName, $"On{property.Name}Changed", "")
             {
                 Params = [new(typeName, "oldValue"), new(typeName, "newValue")],
                 GenerateType = MethodGenerateType.Partial,

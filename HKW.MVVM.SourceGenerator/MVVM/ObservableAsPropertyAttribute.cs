@@ -41,3 +41,9 @@
 /// ]]></code></summary>
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class ObservableAsPropertyAttribute : Attribute { }
+
+///// <summary>
+///// 属性改变参数缓存特性
+///// </summary>
+//[AttributeUsage(AttributeTargets.Class)]
+//public sealed class PropertyChangedArgsCacheAttribute : Attribute { }

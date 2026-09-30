@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using HKW.SourceGeneratorUtils;
 using Microsoft.CodeAnalysis;
 
 namespace HKW.MVVM.SourceGenerator;
@@ -6,22 +7,33 @@ namespace HKW.MVVM.SourceGenerator;
 /// <summary>
 /// 方法属性信息
 /// </summary>
-/// <param name="property">属性</param>
-/// <param name="getMethod">方法</param>
-/// <param name="params">参数</param>
-internal sealed class NotifyPropertyChangeFromInfo(
-    IPropertySymbol property,
-    string getMethod,
-    string[] @params
-)
+internal sealed class NotifyPropertyChangeFromInfo
 {
-    public IPropertySymbol Property { get; set; } = property;
+    /// <summary>
+    /// </summary>
+    /// <param name="property">属性</param>
+    /// <param name="getMethod">方法</param>
+    /// <param name="params">参数</param>
+    public NotifyPropertyChangeFromInfo(
+        IPropertySymbol property,
+        string getMethod,
+        string[] @params
+    )
+    {
+        Property = property;
+        GetMethod = getMethod;
+        Params = @params;
+        ChangingMethodName = $"Notify{property.Name}Changing";
+        ChangedMethodName = $"Notify{property.Name}Changed";
+    }
+
+    public IPropertySymbol Property { get; set; }
 
     public NotifyPropertyChangeFromCacheMode CacheMode { get; set; }
-    public string GetMethod { get; set; } = getMethod;
+    public string GetMethod { get; set; }
 
-    public string[] Params { get; set; } = @params;
+    public string[] Params { get; set; }
 
-    public string ChangingMethodName { get; set; } = $"Notify{property.Name}Changing";
-    public string ChangedMethodName { get; set; } = $"Notify{property.Name}Changed";
+    public string ChangingMethodName { get; set; }
+    public string ChangedMethodName { get; set; }
 }

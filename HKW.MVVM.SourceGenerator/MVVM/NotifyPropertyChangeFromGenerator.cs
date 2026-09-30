@@ -22,10 +22,10 @@ internal class NotifyPropertyChangeFromGenerator
     private void Process()
     {
         var infos = new List<NotifyPropertyChangeFromInfo>();
-        for (var i = 0; i < _classInfo.PropertySSs.Count; i++)
+        for (var i = 0; i < _classInfo.Propertys.Count; i++)
         {
-            var property = _classInfo.PropertySSs[i];
-            var info = AnalyzeProperty(property.Symbol);
+            var propertySymbol = _classInfo.Propertys[i];
+            var info = AnalyzeProperty(propertySymbol);
             if (info is not null)
                 infos.Add(info);
         }
@@ -53,13 +53,13 @@ internal class NotifyPropertyChangeFromGenerator
                 ),
                 nameof(MVVMGenerator.NotifyPropertyChangeFrom)
             );
-            GeneratorHelper.ProductionContext.ReportDiagnostic(diagnostic);
+            _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
             return null;
         }
         // 获取特性的参数
-        var attributeParameters = attributeData.GetParams();
+        var attributeInfo = attributeData.GetInfo()!;
         if (
-            attributeParameters.TryGetParams<string>(
+            attributeInfo.TryGetParams<string>(
                 nameof(NotifyPropertyChangeFromAttribute.PropertyNames),
                 out var propertyNames
             )
@@ -75,7 +75,7 @@ internal class NotifyPropertyChangeFromGenerator
             propertyNames.Distinct().ToArray()
         );
         if (
-            attributeParameters.TryGetParam<NotifyPropertyChangeFromCacheMode>(
+            attributeInfo.TryGetParam<NotifyPropertyChangeFromCacheMode>(
                 nameof(NotifyPropertyChangeFromAttribute.CacheMode),
                 out var cacheMode
             )
@@ -113,12 +113,12 @@ internal class NotifyPropertyChangeFromGenerator
     private void GenerateFromInfo(NotifyPropertyChangeFromInfo info)
     {
         var changingMethod = new MethodGenerateInfo(
-            GeneratorHelper.TypeVoid,
+            GeneratorHelper.VoidName,
             info.ChangingMethodName,
             GenerateChangingMethodContexts(info)
         );
         var changedMethod = new MethodGenerateInfo(
-            GeneratorHelper.TypeVoid,
+            GeneratorHelper.VoidName,
             info.ChangedMethodName,
             GenerateChangedMethodContexts(info)
         );
@@ -153,7 +153,9 @@ internal class NotifyPropertyChangeFromGenerator
     public List<string> GenerateChangingMethodContexts(NotifyPropertyChangeFromInfo info)
     {
         var contents = new List<string>();
-        contents.Add($"{ClassInfo.SourceName}.OnPropertyChanging(\"{info.Property.Name}\");");
+        contents.Add(
+            $"{ClassInfo.SourceName}.OnPropertyChanging({_classInfo.ChangeArgsCache.GetChangingArgs(info.Property.Name)});"
+        );
         if (
             _classInfo.PropertyChangingMemberByName.TryGetValue(
                 info.Property.Name,
@@ -171,7 +173,9 @@ internal class NotifyPropertyChangeFromGenerator
     public List<string> GenerateChangedMethodContexts(NotifyPropertyChangeFromInfo info)
     {
         var contents = new List<string>();
-        contents.Add($"{ClassInfo.SourceName}.OnPropertyChanged(\"{info.Property.Name}\");");
+        contents.Add(
+            $"{ClassInfo.SourceName}.OnPropertyChanged({_classInfo.ChangeArgsCache.GetChangedArgs(info.Property.Name)});"
+        );
 
         if (
             _classInfo.PropertyChangedMemberByName.TryGetValue(

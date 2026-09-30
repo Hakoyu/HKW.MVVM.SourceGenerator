@@ -20,16 +20,15 @@ internal class ObservableAsPropertyGenerator
 
     private void Execute()
     {
-        for (var i = 0; i < _classInfo.PropertySSs.Count; i++)
+        for (var i = 0; i < _classInfo.Propertys.Count; i++)
         {
-            var property = _classInfo.PropertySSs[i];
+            var property = _classInfo.Propertys[i];
             AnalyzeProperty(property);
         }
     }
 
-    private void AnalyzeProperty(PropertySS ss)
+    private void AnalyzeProperty(IPropertySymbol propertySymbol)
     {
-        ss.OutData(out var propertySyntax, out var propertySymbol);
         if (propertySymbol.GetFirstAttribute(MVVMGenerator.ObservableAsPropertyAttribute) is null)
             return;
         // 如果有Set方法则异常
@@ -37,10 +36,10 @@ internal class ObservableAsPropertyGenerator
         {
             var diagnostic = Diagnostic.Create(
                 MVVMDescriptors.PropertyHasSetMethod,
-                propertySyntax.GetLocation(),
+                propertySymbol.Locations[0],
                 nameof(MVVMGenerator.ObservableAsPropertyAttribute)
             );
-            GeneratorHelper.ProductionContext.ReportDiagnostic(diagnostic);
+            _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
             return;
         }
         if (propertySymbol.TryGetGetMethodContent(out var getMethod) is false)

@@ -1,6 +1,7 @@
 ﻿// Source from https://github.com/SparkyTD/ReactiveCommand.SourceGenerator
 
 using System.CodeDom.Compiler;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
 using HKW.SourceGeneratorUtils;
@@ -28,6 +29,11 @@ internal partial class MVVMGenerator : IIncrementalGenerator
     public static string ObservableAsPropertyAttribute { get; } =
         typeof(ObservableAsPropertyAttribute).GetGlobalFullName();
 
+    public static string PropertyChangingEventArgs { get; } =
+        typeof(PropertyChangingEventArgs).GetGlobalFullName();
+    public static string PropertyChangedEventArgs { get; } =
+        typeof(PropertyChangedEventArgs).GetGlobalFullName();
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var observableClasses = context
@@ -51,19 +57,23 @@ internal partial class MVVMGenerator : IIncrementalGenerator
             context.CompilationProvider.Combine(observableClasses),
             static (spc, input) =>
             {
-                GeneratorHelper.Initialize(spc, input.Left);
+                GeneratorHelper.Initialize();
 
                 foreach (var syntaxTree in input.Right.Distinct())
                 {
-                    ParseSyntaxTree(syntaxTree);
+                    ParseSyntaxTree(spc, input.Left, syntaxTree);
                 }
             }
         );
     }
 
-    private static void ParseSyntaxTree(SyntaxTree syntaxTree)
+    private static void ParseSyntaxTree(
+        SourceProductionContext productionContext,
+        Compilation compilation,
+        SyntaxTree syntaxTree
+    )
     {
-        var semanticModel = GeneratorHelper.Compilation.GetSemanticModel(syntaxTree);
+        var semanticModel = compilation.GetSemanticModel(syntaxTree);
         var syntaxTreeInfo = new SyntaxTreeInfo(syntaxTree, semanticModel);
         var declaredClasses = syntaxTree
             .GetRoot()
@@ -71,7 +81,10 @@ internal partial class MVVMGenerator : IIncrementalGenerator
             .OfType<ClassDeclarationSyntax>();
         foreach (var declaredClass in declaredClasses)
         {
-            if (ClassValidator(syntaxTreeInfo, declaredClass) is not ClassInfo classInfo)
+            if (
+                ClassValidator(productionContext, compilation, syntaxTreeInfo, declaredClass)
+                is not ClassInfo classInfo
+            )
                 continue;
 
             NotifyPropertyChangeFromGenerator.Generate(classInfo);
@@ -84,6 +97,8 @@ internal partial class MVVMGenerator : IIncrementalGenerator
     }
 
     private static ClassInfo? ClassValidator(
+        SourceProductionContext productionContext,
+        Compilation compilation,
         SyntaxTreeInfo syntaxTreeInfo,
         ClassDeclarationSyntax declaredClass
     )
@@ -100,32 +115,17 @@ internal partial class MVVMGenerator : IIncrementalGenerator
                 MVVMDescriptors.NotPartialClass,
                 classSymbol.Locations[0]
             );
-            GeneratorHelper.ProductionContext.ReportDiagnostic(diagnostic);
+            productionContext.ReportDiagnostic(diagnostic);
             return null;
         }
 
-        var classInfo = new ClassInfo(syntaxTreeInfo, declaredClass, classSymbol);
-
-        // 分析所有成员
-        foreach (var member in declaredClass.Members)
-        {
-            if (member is MethodDeclarationSyntax methodSyntax)
-            {
-                methodSyntax.GetLocation();
-                var methodSymbol = (IMethodSymbol)
-                    ModelExtensions.GetDeclaredSymbol(syntaxTreeInfo.SemanticModel, methodSyntax)!;
-                classInfo.MethodSSs.Add(new(methodSyntax, methodSymbol));
-            }
-            else if (member is PropertyDeclarationSyntax propertySyntax)
-            {
-                var propertySymbol = (IPropertySymbol)
-                    ModelExtensions.GetDeclaredSymbol(
-                        syntaxTreeInfo.SemanticModel,
-                        propertySyntax
-                    )!;
-                classInfo.PropertySSs.Add(new(propertySyntax, propertySymbol));
-            }
-        }
+        var classInfo = new ClassInfo(
+            productionContext,
+            compilation,
+            syntaxTreeInfo,
+            declaredClass,
+            classSymbol
+        );
         return classInfo;
     }
 }

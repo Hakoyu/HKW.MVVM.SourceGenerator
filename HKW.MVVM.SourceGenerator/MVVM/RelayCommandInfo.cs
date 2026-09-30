@@ -10,14 +10,14 @@ internal class RelayCommandInfo
         ITypeSymbol? methodReturnType,
         ITypeSymbol? argumentType,
         bool isTask,
-        AttributeParamDictionary attributeParams
+        AttributeInfo attributeInfo
     )
     {
         MethodName = methodName;
         MethodReturnType = methodReturnType;
         ArgumentType = argumentType;
         IsTask = isTask;
-        Attributes = attributeParams;
+        AttributeInfo = attributeInfo;
     }
 
     public string MethodName { get; set; }
@@ -28,5 +28,5 @@ internal class RelayCommandInfo
     /// <summary>
     /// (ParamName, TypeAndValue)
     /// </summary>
-    public AttributeParamDictionary Attributes { get; set; }
+    public AttributeInfo AttributeInfo { get; set; }
 }

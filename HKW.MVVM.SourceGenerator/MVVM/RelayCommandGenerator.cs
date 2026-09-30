@@ -23,17 +23,15 @@ internal class RelayCommandGenerator
 
     private void Execute()
     {
-        for (var i = 0; i < _classInfo.MethodSSs.Count; i++)
+        for (var i = 0; i < _classInfo.Methods.Count; i++)
         {
-            var methodSymbol = _classInfo.MethodSSs[i];
+            var methodSymbol = _classInfo.Methods[i];
             AnalyzeMethod(methodSymbol);
         }
     }
 
-    private void AnalyzeMethod(MethodSS methodSS)
+    private void AnalyzeMethod(IMethodSymbol methodSymbol)
     {
-        methodSS.OutData(out var methodSyntax, out var methodSymbol);
-
         // 获取特性数据
         if (
             methodSymbol.TryGetFirstAttribute(
@@ -48,18 +46,18 @@ internal class RelayCommandGenerator
         {
             var diagnostic = Diagnostic.Create(
                 MVVMDescriptors.RelayCommandParametersGreaterThan1,
-                methodSyntax.GetLocation()
+                methodSymbol.Locations[0]
             );
-            GeneratorHelper.ProductionContext.ReportDiagnostic(diagnostic);
+            _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
             return;
         }
         // 获取特性的参数
-        var attributeParams = attributeData.GetParams();
+        var attributeInfo = attributeData.GetInfo()!;
 
         // 是否为异步方法
         bool isTask = methodSymbol.ReturnType.InheritedFrom(GeneratorHelper.TaskTypeFullName);
         // 是否为空返回值
-        var isReturnTypeVoid = methodSymbol.ReturnType.IsVoid();
+        var isReturnTypeVoid = methodSymbol.ReturnType.IsSpecialType(SpecialType.System_Void);
 
         GeneratorCommand(
             new(
@@ -67,7 +65,7 @@ internal class RelayCommandGenerator
                 isReturnTypeVoid ? null : methodSymbol.ReturnType,
                 methodSymbol.Parameters.SingleOrDefault()?.Type,
                 isTask,
-                attributeParams
+                attributeInfo
             )
         );
     }
@@ -134,7 +132,10 @@ internal class RelayCommandGenerator
 
         // 如果有CanExecute则添加canExecute参数
         if (
-            commandInfo.Attributes.TryGetParam<string>("CanExecute", out var canExecutePropertyName)
+            commandInfo.AttributeInfo.TryGetParam<string>(
+                "CanExecute",
+                out var canExecutePropertyName
+            )
         )
         {
             sb.Append($",() => {canExecutePropertyName}");

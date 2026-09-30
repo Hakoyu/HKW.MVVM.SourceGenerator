@@ -35,6 +35,20 @@ public sealed class MVVMGeneratorTests
     }
 
     [TestMethod]
+    public void ObservableProperty_CancelChanging()
+    {
+        var model = new TestModel { Name = "Steve" };
+        model.CancelNameChanging = true;
+        var changeCount = 0;
+        model.PropertyChanged += (_, _) => changeCount++;
+
+        model.Name = "Alice";
+
+        Assert.AreEqual(0, changeCount);
+        Assert.AreEqual("Steve", model.Name);
+    }
+
+    [TestMethod]
     public void RelayCommand_ExecutesMethodAndHonorsCanExecute()
     {
         var model = new TestModel();
@@ -120,8 +134,20 @@ public sealed class MVVMGeneratorTests
 
 public partial class TestModel : ObservableObject
 {
+    public TestModel()
+    {
+        return;
+    }
+
+    public bool CancelNameChanging { get; set; } = false;
+
     [ObservableProperty]
     public string Name { get; set; } = string.Empty;
+
+    partial void OnNameChanging(string oldValue, string newValue, ref bool cancel)
+    {
+        cancel = CancelNameChanging;
+    }
 
     [NotifyPropertyChangeFrom(nameof(Name))]
     public bool IsNameValid => string.IsNullOrWhiteSpace(Name) is false;

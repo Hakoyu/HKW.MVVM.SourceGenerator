@@ -113,6 +113,8 @@ public partial class UserViewModel
 			UserViewModelObservableHelper.SetPropertyName(ref $Name, value);
 		}
 	}
+    partial void OnNameChanging(string oldValue, string newValue, ref bool cancel);
+    partial void OnNameChanged(string oldValue, string newValue);
 
     // 生成一个类型专用 ObservableHelper
     protected sealed partial class UserViewModelObservableObjectHelper
@@ -144,19 +146,16 @@ public partial class UserViewModel
             var oldValue = backingField;
             _source.OnPropertyChanging("Name");
             var cancel = false;
-            OnNameChanging(oldValue, newValue, ref cancel);
+            _source.OnNameChanging(oldValue, newValue, ref cancel);
             if (cancel)
                 return;
 
             NotifyIsNameValidChanging();
             backingField = newValue;
             _source.OnPropertyChanged("Name");
-            OnNameChanged(oldValue, newValue);
+            _source.OnNameChanged(oldValue, newValue);
             NotifyIsNameValidChanged();
         }
-
-        partial void OnNameChanging(string oldValue, string newValue, ref bool cancel);
-        partial void OnNameChanged(string oldValue, string newValue);
     }
 }
 ```
@@ -181,13 +180,13 @@ public void SetPropertyAge(ref int backingField, int newValue)
     var oldValue = backingField;
     _source.OnPropertyChanging("Age");
     var cancel = false;
-    OnAgeChanging(oldValue, newValue, ref cancel);
+    _source.OnAgeChanging(oldValue, newValue, ref cancel);
     if (cancel)
         return;
 
     backingField = newValue;
     _source.OnPropertyChanged("Age");
-    OnAgeChanged(oldValue, newValue);
+    _source.OnAgeChanged(oldValue, newValue);
 }
 
 partial void OnAgeChanging(int oldValue, int newValue, ref bool cancel);
