@@ -58,11 +58,13 @@ internal partial class MVVMGenerator : IIncrementalGenerator
             static (spc, input) =>
             {
                 GeneratorHelper.Initialize();
-
+                var changeArgsCache = new ChangeArgsCache(input.Left);
                 foreach (var syntaxTree in input.Right.Distinct())
                 {
-                    ParseSyntaxTree(spc, input.Left, syntaxTree);
+                    ParseSyntaxTree(spc, input.Left, syntaxTree, changeArgsCache);
                 }
+
+                changeArgsCache.WriteTo(spc);
             }
         );
     }
@@ -70,7 +72,8 @@ internal partial class MVVMGenerator : IIncrementalGenerator
     private static void ParseSyntaxTree(
         SourceProductionContext productionContext,
         Compilation compilation,
-        SyntaxTree syntaxTree
+        SyntaxTree syntaxTree,
+        ChangeArgsCache changeArgsCache
     )
     {
         var semanticModel = compilation.GetSemanticModel(syntaxTree);
@@ -86,6 +89,7 @@ internal partial class MVVMGenerator : IIncrementalGenerator
                 is not ClassInfo classInfo
             )
                 continue;
+            classInfo.ChangeArgsCache = changeArgsCache;
 
             NotifyPropertyChangeFromGenerator.Generate(classInfo);
             ObservablePropertyGenerator.Generate(classInfo);

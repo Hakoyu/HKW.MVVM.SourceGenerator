@@ -29,7 +29,6 @@ internal sealed class ClassInfo
         Usings = (
             (CompilationUnitSyntax)syntaxTreeInfo.SyntaxTree.GetRoot(CancellationToken.None)
         ).Usings;
-        ChangeArgsCache = new(compilation);
 
         // 分析所有成员
         foreach (var member in classSymbol.GetMembers())
@@ -101,58 +100,5 @@ internal sealed class ClassInfo
     /// </summary>
     public Dictionary<string, List<string>> PropertyChangingMemberByName { get; } = [];
 
-    public ChangeArgsCache ChangeArgsCache { get; }
-}
-
-internal sealed class ChangeArgsCache
-{
-    public ChangeArgsCache(Compilation compilation)
-    {
-        var assemblyName = compilation.AssemblyName!.Replace(".", "_");
-        ChangingName = $"{assemblyName}_PropertyChangingArgsCache";
-        ChangedName = $"{assemblyName}_PropertyChangedArgsCache";
-    }
-
-    public string ChangingName { get; }
-    public string ChangedName { get; }
-    public Dictionary<string, PropertyGenerateInfo> ChangingArgs { get; } = [];
-    public Dictionary<string, PropertyGenerateInfo> ChangedArgs { get; } = [];
-
-    public const string Namespace = "HKW.MVVM.SourceGenerator";
-
-    public string GetChangingArgs(string propertyName)
-    {
-        if (ChangingArgs.TryGetValue(propertyName, out var property) is false)
-        {
-            property = ChangingArgs[propertyName] = new(
-                MVVMGenerator.PropertyChangingEventArgs,
-                propertyName,
-                new()
-            )
-            {
-                IsStatic = true,
-                Default = $"new(\"{propertyName}\")",
-                Accessibility = Accessibility.Public,
-            };
-        }
-        return $"{GeneratorHelper.GlobalPrefix}{Namespace}.{ChangingName}.{property.Name}";
-    }
-
-    public string GetChangedArgs(string propertyName)
-    {
-        if (ChangedArgs.TryGetValue(propertyName, out var property) is false)
-        {
-            property = ChangedArgs[propertyName] = new(
-                MVVMGenerator.PropertyChangedEventArgs,
-                propertyName,
-                new()
-            )
-            {
-                IsStatic = true,
-                Default = $"new(\"{propertyName}\")",
-                Accessibility = Accessibility.Public,
-            };
-        }
-        return $"{GeneratorHelper.GlobalPrefix}{Namespace}.{ChangedName}.{property.Name}";
-    }
+    public ChangeArgsCache ChangeArgsCache { get; set; } = null!;
 }
