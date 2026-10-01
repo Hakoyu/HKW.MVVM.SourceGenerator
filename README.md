@@ -549,6 +549,7 @@ public sealed class Greeter
 | `HKWDI006` | Error | `DIConfigurationBase` 派生类型不符合配置类约束 |
 | `HKWDI007` | Error | `[DICustomServiceRegistrar]` 指定的泛型名称不是目标方法的类型参数 |
 | `HKWDI008` | Error | `[DICustomServiceRegistrar]` 的泛型名称与注册方式数量不一致 |
+| `HKWDI009` | Warning | 同一配置中服务类型、实现类型和注册方式完全相同的注册出现多次；仅生成首个注册 |
 
 ## 使用限制
 

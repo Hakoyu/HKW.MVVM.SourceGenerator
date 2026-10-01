@@ -10,7 +10,7 @@ internal static class DIDescriptors
     private const string Category = "HKW.MVVM.SourceGenerator.DependencyInjection";
 
     public static readonly DiagnosticDescriptor AmbiguousConstructor = new(
-        "HKWDI001",
+        "DI001",
         "Dependency injection constructor is ambiguous",
         "Type '{0}' has multiple constructors; mark exactly one with [DependencyInjectionConstructor]",
         Category,
@@ -19,7 +19,7 @@ internal static class DIDescriptors
     );
 
     public static readonly DiagnosticDescriptor InvalidInjectedProperty = new(
-        "HKWDI002",
+        "DI002",
         "Dependency injection property is not writable",
         "Property '{0}' on type '{1}' must be an instance property with an internal or public setter",
         Category,
@@ -28,7 +28,7 @@ internal static class DIDescriptors
     );
 
     public static readonly DiagnosticDescriptor InaccessibleConstructor = new(
-        "HKWDI003",
+        "DI003",
         "Dependency injection constructor is inaccessible",
         "The selected constructor on type '{0}' must be internal or public",
         Category,
@@ -37,7 +37,7 @@ internal static class DIDescriptors
     );
 
     public static readonly DiagnosticDescriptor InvalidImplementationType = new(
-        "HKWDI004",
+        "DI004",
         "Dependency injection implementation is invalid",
         "Type '{0}' must be a non-abstract, closed class",
         Category,
@@ -46,7 +46,7 @@ internal static class DIDescriptors
     );
 
     public static readonly DiagnosticDescriptor IncompatibleServiceType = new(
-        "HKWDI005",
+        "DI005",
         "Dependency injection service and implementation are incompatible",
         "Implementation type '{0}' is not assignable to service type '{1}'",
         Category,
@@ -55,7 +55,7 @@ internal static class DIDescriptors
     );
 
     public static readonly DiagnosticDescriptor InvalidConfigurationType = new(
-        "HKWDI006",
+        "DI006",
         "Dependency injection configuration type is invalid",
         "Type '{0}' must be a top-level, non-generic, non-abstract partial class inheriting DIConfigurationBase with an accessible parameterless constructor",
         Category,
@@ -64,7 +64,7 @@ internal static class DIDescriptors
     );
 
     public static readonly DiagnosticDescriptor InvalidCustomServiceRegistrarGenericName = new(
-        "HKWDI007",
+        "DI007",
         "Dependency injection custom service registrar generic name is invalid",
         "Generic name '{0}' must be a type parameter of method '{1}'",
         Category,
@@ -74,11 +74,20 @@ internal static class DIDescriptors
 
     public static readonly DiagnosticDescriptor CustomServiceRegistrarRegistrationCountMismatch =
         new(
-            "HKWDI008",
+            "DI008",
             "Dependency injection custom service registrar registration count is invalid",
             "Custom service registrar method '{0}' specifies {1} generic names but {2} registration modes",
             Category,
             DiagnosticSeverity.Error,
             true
         );
+
+    public static readonly DiagnosticDescriptor DuplicateRegistration = new(
+        "DI009",
+        "Dependency injection registration is duplicated",
+        "Service type '{0}' with implementation type '{1}' is registered more than once using '{2}'",
+        Category,
+        DiagnosticSeverity.Warning,
+        true
+    );
 }

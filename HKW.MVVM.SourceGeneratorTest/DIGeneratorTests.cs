@@ -97,7 +97,18 @@ public sealed class DIGeneratorTests
         Assert.IsNotNull(provider.GetService<FirstCustomRegistrarDependency>());
         Assert.IsNull(provider.GetService<UnselectedCustomRegistrarDependency>());
         Assert.IsNotNull(provider.GetService<SecondCustomRegistrarDependency>());
-        Assert.AreEqual(1, CustomRegistrarServices.Instance.InvocationCount);
+        Assert.IsNotNull(provider.GetService<AnotherFirstCustomRegistrarDependency>());
+        Assert.IsNull(provider.GetService<AnotherUnselectedCustomRegistrarDependency>());
+        Assert.IsNotNull(provider.GetService<AnotherSecondCustomRegistrarDependency>());
+        Assert.AreEqual(2, CustomRegistrarServices.Instance.InvocationCount);
+    }
+
+    [TestMethod]
+    public void DuplicateRegistrationsKeepOnlyTheFirst()
+    {
+        using var provider = DuplicateRegistrationServices.Instance.Build().BuildServiceProvider();
+
+        Assert.HasCount(1, provider.GetServices<DuplicateDependency>());
     }
 
     [TestMethod]
@@ -198,6 +209,11 @@ public sealed partial class CustomRegistrarServices : DIConfigurationBase
             UnselectedCustomRegistrarDependency,
             SecondCustomRegistrarDependency
         >();
+        RegisterCustom<
+            AnotherFirstCustomRegistrarDependency,
+            AnotherUnselectedCustomRegistrarDependency,
+            AnotherSecondCustomRegistrarDependency
+        >();
     }
 
     [DICustomServiceRegistrar(nameof(TFirst), nameof(TSecond))]
@@ -210,6 +226,15 @@ public sealed partial class CustomRegistrarServices : DIConfigurationBase
         Register<TFirst>();
         Register<TUnselected>();
         Register<TSecond>();
+    }
+}
+
+public sealed partial class DuplicateRegistrationServices : DIConfigurationBase
+{
+    protected override void Configure(IServiceCollection services)
+    {
+        Register<DuplicateDependency>();
+        Register<DuplicateDependency>();
     }
 }
 
@@ -258,6 +283,14 @@ public sealed class FirstCustomRegistrarDependency;
 public sealed class UnselectedCustomRegistrarDependency;
 
 public sealed class SecondCustomRegistrarDependency;
+
+public sealed class AnotherFirstCustomRegistrarDependency;
+
+public sealed class AnotherUnselectedCustomRegistrarDependency;
+
+public sealed class AnotherSecondCustomRegistrarDependency;
+
+public sealed class DuplicateDependency;
 
 public sealed class CustomTransientDependency;
 

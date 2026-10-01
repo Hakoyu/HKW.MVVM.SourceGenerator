@@ -180,7 +180,9 @@ internal sealed class DIGenerator : IIncrementalGenerator
         foreach (var diagnostic in registrationScans.SelectMany(scan => scan.Diagnostics))
             context.ReportDiagnostic(diagnostic);
 
-        var registrations = registrationScans.SelectMany(scan => scan.Registrations);
+        var registrations = registrationScans
+            .SelectMany(static scan => scan.Registrations)
+            .ToImmutableArray();
         var generatedConfigurations = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
         foreach (var configuration in configurations)
         {
@@ -197,19 +199,55 @@ internal sealed class DIGenerator : IIncrementalGenerator
                 continue;
             }
 
-            AddConfigurationSource(
-                context,
-                compilation,
-                configuration,
-                registrations
-                    .Where(registration =>
-                        registration.ContainingType?.SymbolEquals(configuration.Symbol) is true
+            var configurationRegistrations = registrations
+                .Where(registration =>
+                    SymbolEqualityComparer.Default.Equals(
+                        registration.ContainingType,
+                        configuration.Symbol
                     )
-                    .OrderBy(registration => registration.Location.SourceTree?.FilePath)
-                    .ThenBy(registration => registration.Location.SourceSpan.Start)
+                )
+                .OrderBy(registration => registration.Location.SourceTree?.FilePath)
+                .ThenBy(registration => registration.Location.SourceSpan.Start)
+                .ToImmutableArray();
+            var uniqueRegistrations = FilterDuplicateRegistrations(
+                context,
+                configurationRegistrations
             );
+            AddConfigurationSource(context, compilation, configuration, uniqueRegistrations);
         }
     }
+
+    private static ImmutableArray<Registration> FilterDuplicateRegistrations(
+        SourceProductionContext context,
+        ImmutableArray<Registration> registrations
+    )
+    {
+        var uniqueRegistrations = ImmutableArray.CreateBuilder<Registration>();
+        foreach (var registration in registrations)
+        {
+            if (uniqueRegistrations.Any(existing => IsSameRegistration(existing, registration)))
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        DIDescriptors.DuplicateRegistration,
+                        registration.Location,
+                        registration.ServiceType.GetName(),
+                        registration.ImplementationType.GetName(),
+                        registration.MethodName
+                    )
+                );
+                continue;
+            }
+            uniqueRegistrations.Add(registration);
+        }
+        return uniqueRegistrations.ToImmutable();
+    }
+
+    private static bool IsSameRegistration(Registration left, Registration right) =>
+        left.MethodName == right.MethodName
+        && left.IsServiceMapping == right.IsServiceMapping
+        && SymbolEqualityComparer.Default.Equals(left.ServiceType, right.ServiceType)
+        && SymbolEqualityComparer.Default.Equals(left.ImplementationType, right.ImplementationType);
 
     private static bool IsValidConfiguration(ConfigurationInfo configuration) =>
         configuration.Symbol.IsStatic is false
