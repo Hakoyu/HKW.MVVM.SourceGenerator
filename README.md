@@ -423,7 +423,7 @@ public partial class AppServices : DIConfigurationBase
 - 非泛型；
 - 具有 `public` 或 `internal` 无参数构造函数。
 
-不满足以上任意一点会触发 `HKWDI007`。
+不满足以上任意一点会触发 `HKWDI006`。
 
 生成器会为该类型生成单例入口，并重写注册方法：
 
@@ -546,7 +546,9 @@ public sealed class Greeter
 | `HKWDI003` | Error | 选中的构造函数可访问性低于 `internal` |
 | `HKWDI004` | Error | 实现类型不是非抽象的封闭类 |
 | `HKWDI005` | Error | 实现类型不能转换为服务类型 |
-| `HKWDI007` | Error | `DIConfigurationBase` 派生类型不符合配置类约束 |
+| `HKWDI006` | Error | `DIConfigurationBase` 派生类型不符合配置类约束 |
+| `HKWDI007` | Error | `[DICustomServiceRegistrar]` 指定的泛型名称不是目标方法的类型参数 |
+| `HKWDI008` | Error | `[DICustomServiceRegistrar]` 的泛型名称与注册方式数量不一致 |
 
 ## 使用限制
 

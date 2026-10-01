@@ -66,9 +66,19 @@ internal static class DIDescriptors
     public static readonly DiagnosticDescriptor InvalidCustomServiceRegistrarGenericName = new(
         "HKWDI007",
         "Dependency injection custom service registrar generic name is invalid",
-        "GenericName '{0}' must be a generic in the target method '{1}'.",
+        "Generic name '{0}' must be a type parameter of method '{1}'",
         Category,
         DiagnosticSeverity.Error,
         true
     );
+
+    public static readonly DiagnosticDescriptor CustomServiceRegistrarRegistrationCountMismatch =
+        new(
+            "HKWDI008",
+            "Dependency injection custom service registrar registration count is invalid",
+            "Custom service registrar method '{0}' specifies {1} generic names but {2} registration modes",
+            Category,
+            DiagnosticSeverity.Error,
+            true
+        );
 }

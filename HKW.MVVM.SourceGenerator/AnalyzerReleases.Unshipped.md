@@ -15,3 +15,5 @@ HKWDI003 | DIGenerator | Error | Descriptors
 HKWDI004 | DIGenerator | Error | Descriptors
 HKWDI005 | DIGenerator | Error | Descriptors
 HKWDI006 | DIGenerator | Error | Descriptors
+HKWDI007 | DIGenerator | Error | Descriptors
+HKWDI008 | DIGenerator | Error | Descriptors
