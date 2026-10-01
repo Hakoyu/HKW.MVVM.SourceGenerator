@@ -76,7 +76,7 @@ internal partial class MVVMGenerator : IIncrementalGenerator
         var semanticModel = compilation.GetSemanticModel(syntaxTree);
         var syntaxTreeInfo = new SyntaxTreeInfo(syntaxTree, semanticModel);
         var declaredClasses = syntaxTree
-            .GetRoot()
+            .GetRoot(CancellationToken.None)
             .DescendantNodesAndSelf()
             .OfType<ClassDeclarationSyntax>();
         foreach (var declaredClass in declaredClasses)
@@ -104,7 +104,11 @@ internal partial class MVVMGenerator : IIncrementalGenerator
     )
     {
         var classSymbol = (INamedTypeSymbol)
-            ModelExtensions.GetDeclaredSymbol(syntaxTreeInfo.SemanticModel, declaredClass)!;
+            ModelExtensions.GetDeclaredSymbol(
+                syntaxTreeInfo.SemanticModel,
+                declaredClass,
+                CancellationToken.None
+            )!;
         if (classSymbol.InheritedFrom(MVVMGenerator.ObservableObject) is false)
             return null; // 如果没有继承ObservableObject,则跳过
 

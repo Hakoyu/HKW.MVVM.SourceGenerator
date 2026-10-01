@@ -13,77 +13,152 @@ namespace HKW.MVVM.SourceGenerator;
 [Generator]
 internal sealed class DIGenerator : IIncrementalGenerator
 {
-    private const string RegistrationsTypeName = "HKW.MVVM.SourceGenerator.DIConfigurationBase";
-    private const string ConfigurationAttributeName =
-        "HKW.MVVM.SourceGenerator.DIConfigurationAttribute";
-    private const string ConstructorAttributeName =
-        "HKW.MVVM.SourceGenerator.DIConstructorAttribute";
-    private const string PropertyAttributeName = "HKW.MVVM.SourceGenerator.DIPropertyAttribute";
+    private static string RegistrationsTypeName { get; } =
+        typeof(DIConfigurationBase).GetFullName();
+    private static string CustomRegistrarAttributeName { get; } =
+        typeof(DICustomServiceRegistrarAttribute).GetFullName();
+    private static string ConstructorAttributeName { get; } =
+        typeof(DIConstructorAttribute).GetFullName();
+    private static string PropertyAttributeName { get; } =
+        typeof(DIPropertyAttribute).GetFullName();
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var configurations = context
-            .SyntaxProvider.ForAttributeWithMetadataName(
-                ConfigurationAttributeName,
+            .SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => node is ClassDeclarationSyntax,
-                static (attributeContext, _) =>
-                    new ConfigurationInfo(
-                        (INamedTypeSymbol)attributeContext.TargetSymbol,
-                        (ClassDeclarationSyntax)attributeContext.TargetNode
-                    )
+                static (syntaxContext, _) => GetConfiguration(syntaxContext)
             )
+            .Where(static configuration => configuration is not null)
+            .Select(static (configuration, _) => configuration!)
             .Collect();
         var registrations = context
             .SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => node is InvocationExpressionSyntax,
-                static (syntaxContext, _) => GetRegistration(syntaxContext)
+                static (syntaxContext, _) => GetRegistrations(syntaxContext)
             )
-            .Where(static registration => registration is not null)
-            .Select(static (registration, _) => registration!)
+            .Where(static registrations => registrations.IsDefaultOrEmpty is false)
             .Collect();
 
         context.RegisterSourceOutput(
             context.CompilationProvider.Combine(configurations).Combine(registrations),
             static (productionContext, input) =>
-                Generate(productionContext, input.Left.Left, input.Left.Right, input.Right)
+                Generate(
+                    productionContext,
+                    input.Left.Left,
+                    input.Left.Right,
+                    input.Right.SelectMany(static registrations => registrations).ToImmutableArray()
+                )
         );
     }
 
-    private static Registration? GetRegistration(GeneratorSyntaxContext context)
+    private static ConfigurationInfo? GetConfiguration(GeneratorSyntaxContext context)
     {
-        var invocation = (InvocationExpressionSyntax)context.Node;
-        if (context.SemanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
-            return null;
-        if (method.ContainingType.ToDisplayString() != RegistrationsTypeName)
-            return null;
-        if (method.Parameters.Length != 0 || method.TypeArguments.Length is < 1 or > 2)
-            return null;
+        var syntax = (ClassDeclarationSyntax)context.Node;
         if (
-            context.SemanticModel.GetEnclosingSymbol(invocation.SpanStart)
-            is not ISymbol enclosingSymbol
+            context.SemanticModel.GetDeclaredSymbol(syntax) is not INamedTypeSymbol symbol
+            || symbol.BaseType?.GetFullName() != RegistrationsTypeName
         )
             return null;
 
-        var lifetime = method.Name switch
-        {
-            "Register" => ServiceLifetime.Transient,
-            "RegisterScoped" => ServiceLifetime.Scoped,
-            "RegisterSingleton" or "RegisterLazySingleton" => ServiceLifetime.Singleton,
-            _ => ServiceLifetime.None,
-        };
-        if (lifetime == ServiceLifetime.None)
-            return null;
-
-        return new Registration(
-            enclosingSymbol.ContainingType,
-            method.TypeArguments[0],
-            method.TypeArguments.Length == 1 ? method.TypeArguments[0] : method.TypeArguments[1],
-            lifetime,
-            method.Name,
-            method.TypeArguments.Length == 2,
-            invocation.GetLocation()
-        );
+        return new ConfigurationInfo(symbol, syntax);
     }
+
+    private static ImmutableArray<Registration> GetRegistrations(GeneratorSyntaxContext context)
+    {
+        var invocation = (InvocationExpressionSyntax)context.Node;
+        if (
+            context.SemanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method
+            || context.SemanticModel.GetEnclosingSymbol(invocation.SpanStart)
+                is not IMethodSymbol enclosingMethod
+            || IsConfigureMethod(enclosingMethod) is false
+        )
+            return [];
+
+        if (
+            method.ContainingType.ToDisplayString() == RegistrationsTypeName
+            && method.Parameters.Length == 0
+            && method.TypeArguments.Length is >= 1 and <= 2
+        )
+        {
+            return
+            [
+                new Registration(
+                    enclosingMethod.ContainingType,
+                    method.TypeArguments[0],
+                    method.TypeArguments.Length == 1
+                        ? method.TypeArguments[0]
+                        : method.TypeArguments[1],
+                    method.Name,
+                    method.TypeArguments.Length == 2,
+                    invocation.GetLocation()
+                ),
+            ];
+        }
+
+        var attributeInfo = method.GetFirstAttribute(CustomRegistrarAttributeName).GetInfo();
+        if (attributeInfo is null)
+            return [];
+
+        var genericNameValues = attributeInfo
+            .GetParams<string>(nameof(DICustomServiceRegistrarAttribute.GenericNames))
+            .ToArray();
+        var registrationValues = NativeExtensions.GetParams<DIServiceRegistration>(
+            attributeInfo,
+            nameof(DICustomServiceRegistrarAttribute.Registrations)
+        );
+        if (registrationValues is not null && registrationValues.Length != genericNameValues.Length)
+        {
+            //context.ReportDiagnostic(diagnostic);
+            return [];
+        }
+        var registrations = ImmutableArray.CreateBuilder<Registration>();
+        for (var index = 0; index < genericNameValues.Length; index++)
+        {
+            var genericName = genericNameValues[index];
+            var genericParam = method.TypeParameters.FirstOrDefault(parameter =>
+                parameter.Name == genericName
+            );
+            if (genericParam is null)
+            {
+                //var diagnostic = Diagnostic.Create(
+                //    DIDescriptors.InvalidCustomServiceRegistrarGenericName,
+                //    attributeInfo.Data.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
+                //        attributeInfo.Data.ApplicationSyntaxReference.Span
+                //    ),
+                //    genericParam?.GetName(),
+                //    method.Name
+                //);
+                //context.ReportDiagnostic(diagnostic);
+                continue;
+            }
+            var methodName = "Register";
+            if (registrationValues is not null)
+            {
+                var registrationMode = registrationValues[index];
+                methodName = registrationMode.ToCode();
+                if (string.IsNullOrWhiteSpace(methodName))
+                    continue;
+            }
+            var serviceType = method.TypeArguments[method.TypeParameters.IndexOf(genericParam)];
+            registrations.Add(
+                new Registration(
+                    enclosingMethod.ContainingType,
+                    serviceType,
+                    serviceType,
+                    methodName,
+                    false,
+                    invocation.GetLocation()
+                )
+            );
+        }
+        return registrations.ToImmutable();
+    }
+
+    private static bool IsConfigureMethod(IMethodSymbol method) =>
+        method.Name == "Configure"
+        && method.IsOverride
+        && method.OverriddenMethod?.ContainingType.ToDisplayString() == RegistrationsTypeName;
 
     private static void Generate(
         SourceProductionContext context,
@@ -92,23 +167,6 @@ internal sealed class DIGenerator : IIncrementalGenerator
         ImmutableArray<Registration> registrations
     )
     {
-        var configurationSymbols = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-        foreach (var configuration in configurations)
-            configurationSymbols.Add(configuration.Symbol);
-        foreach (
-            var registration in registrations.Where(registration =>
-                registration.ContainingType is null
-                || configurationSymbols.Contains(registration.ContainingType) is false
-            )
-        )
-        {
-            var diagnostic = Diagnostic.Create(
-                DIDescriptors.RegistrationOutsideConfiguration,
-                registration.Location
-            );
-            context.ReportDiagnostic(diagnostic);
-        }
-
         var generatedConfigurations = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
         foreach (var configuration in configurations)
         {
@@ -150,7 +208,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
         && configuration.Symbol.BaseType?.ToDisplayString() == RegistrationsTypeName
         && configuration.Symbol.InstanceConstructors.Any(constructor =>
             constructor.Parameters.Length == 0
-            && constructor.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
+            && constructor.DeclaredAccessibility >= Accessibility.Internal
         )
         && configuration.Syntax.Modifiers.Any(SyntaxKind.PartialKeyword);
 
@@ -166,11 +224,11 @@ internal sealed class DIGenerator : IIncrementalGenerator
 
         writer.Write(registration.MethodName);
         writer.Write('<');
-        writer.Write(registration.ServiceType.GetFullName());
+        writer.Write(registration.ServiceType.GetGlobalFullName());
         if (registration.IsServiceMapping)
         {
             writer.Write(", ");
-            writer.Write(registration.ImplementationType.GetFullName());
+            writer.Write(registration.ImplementationType.GetGlobalFullName());
         }
         writer.WriteLine(">(services, serviceProvider =>");
         writer.WriteLine("{");
@@ -210,10 +268,16 @@ internal sealed class DIGenerator : IIncrementalGenerator
         writer.WriteLine($"{accessibility} partial class {configuration.Symbol.Name}");
         writer.WriteLine("{");
         writer.Indent++;
-        writer.WriteLine("/// <summary>此配置的单例实例</summary>");
-        writer.WriteLine($"public static {configuration.Symbol.Name} Instance {{ get; }} = new();");
+        writer.WriteLine("/// <summary>延迟创建的配置单例实例</summary>");
+        writer.WriteLine(GeneratorHelper.GeneratedCodeAttributeName);
+        writer.WriteLine(GeneratorHelper.DebuggerBrowsableNeverAttributeName);
+        writer.WriteLine(
+            $"private static readonly global::System.Lazy<{configuration.Symbol.Name}> _instance = new(() => new());"
+        );
+        writer.WriteLine($"public static {configuration.Symbol.Name} Instance => _instance.Value;");
         writer.WriteLine();
         writer.WriteLine("/// <summary>将此配置中的全部源生成注册应用到指定服务集合</summary>");
+        writer.WriteLine(GeneratorHelper.GeneratedCodeAttributeName);
         writer.WriteLine(
             "public override global::Microsoft.Extensions.DependencyInjection.IServiceCollection Build("
         );
@@ -291,7 +355,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
 
         var constructors = implementationType.InstanceConstructors;
         var markedConstructors = constructors
-            .Where(static constructor => HasAttribute(constructor, ConstructorAttributeName))
+            .Where(static constructor => constructor.HasAttribute(ConstructorAttributeName))
             .ToImmutableArray();
         IMethodSymbol constructor;
         if (constructors.Length == 1 && markedConstructors.Length <= 1)
@@ -347,7 +411,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
 
         var builder = new StringBuilder()
             .Append("new ")
-            .Append(implementationType.GetFullName())
+            .Append(implementationType.GetGlobalFullName())
             .Append('(')
             .Append(arguments)
             .Append(')');
@@ -357,7 +421,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
             foreach (var property in properties)
             {
                 builder
-                    .Append(EscapeIdentifier(property.Name))
+                    .Append(property.Name)
                     .Append(" = ")
                     .Append(Resolve(property.Type))
                     .Append(", ");
@@ -381,7 +445,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
             properties.AddRange(
                 type.GetMembers()
                     .OfType<IPropertySymbol>()
-                    .Where(static property => HasAttribute(property, PropertyAttributeName))
+                    .Where(static property => property.HasAttribute(PropertyAttributeName))
             );
         }
         return properties;
@@ -409,24 +473,8 @@ internal sealed class DIGenerator : IIncrementalGenerator
         return $"global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<{type.GetFullName()}>(serviceProvider)";
     }
 
-    private static bool HasAttribute(ISymbol symbol, string attributeName) =>
-        symbol
-            .GetAttributes()
-            .Any(attribute => attribute.AttributeClass?.ToDisplayString() == attributeName);
-
-    private static string EscapeIdentifier(string name) =>
-        SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
-
     private static string SanitizeHintName(string name) =>
         new(name.Select(character => char.IsLetterOrDigit(character) ? character : '_').ToArray());
-
-    private enum ServiceLifetime
-    {
-        None,
-        Transient,
-        Scoped,
-        Singleton,
-    }
 
     private sealed class ConfigurationInfo(INamedTypeSymbol symbol, ClassDeclarationSyntax syntax)
     {
@@ -438,7 +486,6 @@ internal sealed class DIGenerator : IIncrementalGenerator
         INamedTypeSymbol? containingType,
         ITypeSymbol serviceType,
         ITypeSymbol implementationType,
-        ServiceLifetime lifetime,
         string methodName,
         bool isServiceMapping,
         Location location
@@ -447,7 +494,6 @@ internal sealed class DIGenerator : IIncrementalGenerator
         public INamedTypeSymbol? ContainingType { get; } = containingType;
         public ITypeSymbol ServiceType { get; } = serviceType;
         public ITypeSymbol ImplementationType { get; } = implementationType;
-        public ServiceLifetime Lifetime { get; } = lifetime;
         public string MethodName { get; } = methodName;
         public bool IsServiceMapping { get; } = isServiceMapping;
         public Location Location { get; } = location;

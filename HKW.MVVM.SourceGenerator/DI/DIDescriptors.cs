@@ -54,19 +54,19 @@ internal static class DIDescriptors
         true
     );
 
-    public static readonly DiagnosticDescriptor RegistrationOutsideConfiguration = new(
+    public static readonly DiagnosticDescriptor InvalidConfigurationType = new(
         "HKWDI006",
-        "Dependency injection registration is outside a configuration",
-        "Dependency injection registration must be declared inside a class marked with [DIConfiguration]",
+        "Dependency injection configuration type is invalid",
+        "Type '{0}' must be a top-level, non-generic, non-abstract partial class inheriting DIConfigurationBase with an accessible parameterless constructor",
         Category,
-        DiagnosticSeverity.Warning,
+        DiagnosticSeverity.Error,
         true
     );
 
-    public static readonly DiagnosticDescriptor InvalidConfigurationType = new(
+    public static readonly DiagnosticDescriptor InvalidCustomServiceRegistrarGenericName = new(
         "HKWDI007",
-        "Dependency injection configuration type is invalid",
-        "Type '{0}' must be a top-level, non-generic, non-abstract partial class inheriting DIConfigurationBase with an accessible parameterless constructor",
+        "Dependency injection custom service registrar generic name is invalid",
+        "GenericName '{0}' must be a generic in the target method '{1}'.",
         Category,
         DiagnosticSeverity.Error,
         true

@@ -15,8 +15,9 @@ MVVM：
 
 依赖注入：
 
-- 使用 `DIRegistrations.Register*` 系列方法在编译时标记服务注册，支持瞬态、作用域、单例和延迟单例。
-- 使用 `[DIConfiguration]` 声明配置类型，生成器为其生成 `Build()` / `Build(IServiceCollection)`，直接产出面向 `Microsoft.Extensions.DependencyInjection` 的显式工厂代码。
+- 使用 `DIConfigurationBase.Register*` 系列方法在 `Configure` 中标记服务注册，支持瞬态、作用域、单例和延迟单例。
+- 使用 `[DICustomServiceRegistrar]` 将自定义泛型注册方法的指定类型参数注册为瞬态服务。
+- 继承 `DIConfigurationBase` 声明配置类型，生成器为其生成 `Build()` / `Build(IServiceCollection)`，直接产出面向 `Microsoft.Extensions.DependencyInjection` 的显式工厂代码。
 - 使用 `[DIConstructor]` 在多构造函数类型中选择注入使用的构造函数。
 - 使用 `[DIProperty]` 标记需要属性注入的属性，支持 `init` 访问器。
 - 自动识别构造函数参数中的 `Lazy<T>` 和 `IEnumerable<T>`，分别映射为延迟解析和多实现解析。
@@ -395,54 +396,88 @@ public string UpperName => UserViewModelObservableHelper._upperNameOAPH.Value;
 
 ## 依赖注入生成
 
-`DIGenerator` 是独立于 MVVM 部分的源生成器，基于标记 API 收集当前程序集内的服务注册声明，并为每个标注 `[DIConfiguration]` 的类型生成显式的 `Microsoft.Extensions.DependencyInjection.IServiceCollection` 注册代码。整个过程只产生普通 C# 代码，不依赖反射，也不经过 Fody。
+`DIGenerator` 是独立于 MVVM 部分的源生成器，基于标记 API 收集当前程序集内的服务注册声明，并为每个直接继承 `DIConfigurationBase` 的类型生成显式的 `Microsoft.Extensions.DependencyInjection.IServiceCollection` 注册代码。整个过程只产生普通 C# 代码，不依赖反射，也不经过 Fody。
 
 ### 声明配置
 
 ```csharp
 using HKW.MVVM.SourceGenerator;
+using Microsoft.Extensions.DependencyInjection;
 
-[DIConfiguration]
-public static partial class AppServices
+public partial class AppServices : DIConfigurationBase
 {
-    private static void Configure()
+    protected override void Configure(IServiceCollection services)
     {
-        DIRegistrations.Register<ILogger, ConsoleLogger>();
-        DIRegistrations.RegisterScoped<IRequestContext, RequestContext>();
-        DIRegistrations.RegisterLazySingleton<ICache, MemoryCache>();
+        Register<ILogger, ConsoleLogger>();
+        RegisterScoped<IRequestContext, RequestContext>();
+        RegisterLazySingleton<ICache, MemoryCache>();
     }
 }
 ```
 
 配置类型必须是：
 
+- 直接继承 `DIConfigurationBase`；
 - 顶层类型（不能是嵌套类型）；
-- `static`；
-- `partial`；
-- 非泛型。
+- 非抽象的 `partial` 类；
+- 非泛型；
+- 具有 `public` 或 `internal` 无参数构造函数。
 
 不满足以上任意一点会触发 `HKWDI007`。
 
-生成器会为该类型生成两个方法：
+生成器会为该类型生成单例入口，并重写注册方法：
 
 ```csharp
-public static partial class AppServices
+public partial class AppServices
 {
-    public static IServiceCollection Build();
-    public static IServiceCollection Build(IServiceCollection services);
+    private static readonly Lazy<AppServices> s_instance;
+    public static AppServices Instance { get; }
+    public override IServiceCollection Build(IServiceCollection services);
 }
 ```
 
-`Build()` 内部创建一个新的 `ServiceCollection` 并调用 `Build(IServiceCollection)`；`Build(IServiceCollection)` 接受一个已存在的服务集合，写入注册后返回同一个实例，便于和其他注册来源组合：
+`Instance` 通过 `Lazy<AppServices>` 延迟且线程安全地创建配置单例。基类的 `Build()` 会创建新的 `ServiceCollection`；`Build(IServiceCollection)` 接受一个已存在的服务集合，写入注册后返回同一个实例，便于和其他注册来源组合：
 
 ```csharp
-var services = AppServices.Build();
+var services = AppServices.Instance.Build();
 // 或者传入自定义的服务集合
 var services = new ServiceCollection();
-AppServices.Build(services);
+AppServices.Instance.Build(services);
 ```
 
-`DIRegistrations.Register*` 只是编译期标记方法，本身不执行任何操作。生成器会扫描整个编译中的调用，不要求方法一定会被执行到，也不区分调用是否可达。若这些标记方法出现在未标注 `[DIConfiguration]` 的类型中，会触发 `HKWDI006` 警告，且该调用不会被任何配置收集，也不会生成对应注册。
+无参数的 `Register*` 方法只是编译期标记，本身不执行任何操作。生成器只收集 `Configure(IServiceCollection)` 方法中的直接调用。
+
+自定义泛型方法可以使用 `[DICustomServiceRegistrar]` 指定需要注册的泛型参数。生成器会分析该方法在 `Configure` 中的闭合泛型调用，并按指定参数生成瞬态注册；方法体仍会在 `Configure` 执行时正常运行：
+
+```csharp
+protected override void Configure(IServiceCollection services)
+{
+    RegisterMVVM<MainViewModel, MainView>();
+}
+
+[DICustomServiceRegistrar(nameof(TViewModel))]
+private void RegisterMVVM<TViewModel, TView>()
+    where TViewModel : class
+    where TView : Control, new()
+{
+    ViewLocator.Register<TViewModel, TView>();
+    Register<TViewModel>(); // 不会被重复收集
+}
+```
+
+`DICustomServiceRegistrarAttribute` 接受一个或多个泛型参数名称。指定的参数必须在 `Configure` 调用处闭合为可注册的实现类型。仅传名称时默认使用 `Normal`（瞬态）注册；也可以为每个名称单独指定注册方式：
+
+```csharp
+[DICustomServiceRegistrar(
+    nameof(TViewModel), DIServiceRegistration.Scoped,
+    nameof(TCache), DIServiceRegistration.LazySingleton
+)]
+private void RegisterMVVM<TViewModel, TCache>()
+    where TViewModel : class
+    where TCache : class { }
+```
+
+特性参数不支持元组常量，因此该重载以 `泛型名, 注册方式` 交替成对传入。可用方式为 `Normal`、`Scoped`、`Singleton` 和 `LazySingleton`。
 
 ### 生命周期
 
@@ -511,8 +546,7 @@ public sealed class Greeter
 | `HKWDI003` | Error | 选中的构造函数可访问性低于 `internal` |
 | `HKWDI004` | Error | 实现类型不是非抽象的封闭类 |
 | `HKWDI005` | Error | 实现类型不能转换为服务类型 |
-| `HKWDI006` | Warning | 注册标记方法出现在未标注 `[DIConfiguration]` 的类型中，该调用会被忽略 |
-| `HKWDI007` | Error | `[DIConfiguration]` 标注的类型不是顶层、静态、非泛型的 `partial` 类 |
+| `HKWDI007` | Error | `DIConfigurationBase` 派生类型不符合配置类约束 |
 
 ## 使用限制
 
@@ -527,8 +561,8 @@ MVVM：
 
 依赖注入：
 
-- `[DIConfiguration]` 只能标注顶层、`static`、`partial`、非泛型类型。
-- `DIRegistrations.Register*` 调用必须直接出现在配置类型内部（可以在其私有方法中），否则不会生效并产生警告。
+- 配置类必须直接继承 `DIConfigurationBase`，并满足顶层、非抽象、`partial`、非泛型和可访问无参数构造函数等约束。
+- `Register*` 调用只有直接出现在 `Configure(IServiceCollection)` 中才会被收集；自定义泛型注册方法应使用 `[DICustomServiceRegistrar]`。
 - 泛型服务/实现类型、开放泛型定义暂不支持。
 - 引用其他程序集的实现类型只有在只有一个可访问构造函数时才能使用；`[DIConstructor]`/`[DIProperty]` 只对当前编译中的类型成员生效。
 

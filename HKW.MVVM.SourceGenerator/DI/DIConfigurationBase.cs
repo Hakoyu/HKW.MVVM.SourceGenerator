@@ -8,8 +8,8 @@ namespace HKW.MVVM.SourceGenerator;
 /// 声明由依赖注入源生成器在编译时收集的服务注册
 /// </summary>
 /// <remarks>
-/// 无参数的注册方法仅作为编译时标记；生成的注册代码会调用可重写的工厂注册方法
-/// 请在标记了 <see cref="DIConfigurationAttribute"/> 的分部类中使用
+/// 无参数的注册方法仅作为编译时标记；生成的注册代码会调用可重写的工厂注册方法。
+/// 派生配置类必须是顶层、非泛型、非抽象的分部类，并具有可访问的无参数构造函数。
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public abstract class DIConfigurationBase
