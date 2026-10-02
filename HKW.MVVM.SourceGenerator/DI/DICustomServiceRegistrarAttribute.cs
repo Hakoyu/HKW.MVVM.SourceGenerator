@@ -30,7 +30,9 @@ public enum DIServiceRegistration
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class DICustomServiceRegistrarAttribute : Attribute
 {
-    /// <summary>将指定泛型参数注册为瞬态服务</summary>
+    /// <summary>
+    /// 将指定泛型参数注册为瞬态服务
+    /// </summary>
     /// <param name="GenericNames">泛型参数名称</param>
     public DICustomServiceRegistrarAttribute(params string[] GenericNames)
     {
@@ -38,7 +40,9 @@ public sealed class DICustomServiceRegistrarAttribute : Attribute
         this.Registrations = Array.Empty<DIServiceRegistration>();
     }
 
-    /// <summary>为每个泛型参数指定注册方式</summary>
+    /// <summary>
+    /// 为每个泛型参数指定注册方式
+    /// </summary>
     /// <param name="GenericNames">泛型参数名称</param>
     /// <param name="Registrations">泛型参数名称与注册方式</param>
     public DICustomServiceRegistrarAttribute(
