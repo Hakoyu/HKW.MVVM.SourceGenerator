@@ -32,8 +32,23 @@ public abstract class DIConfigurationBase
     public IServiceCollection Build() => Build(new ServiceCollection());
 
     /// <summary>
+    /// 创建由源生成器实现的轻量服务提供程序
+    /// </summary>
+    /// <remarks>
+    /// 生成器会重写此方法。轻量服务提供程序包含 <c>Register*</c> 声明及手动工厂注册。
+    /// </remarks>
+    public virtual DIServiceProvider BuildServiceProvider() =>
+        BuildServiceProvider(new ServiceProviderOptions());
+
+    /// <summary>使用指定验证选项创建源生成的轻量服务提供程序。</summary>
+    public virtual DIServiceProvider BuildServiceProvider(ServiceProviderOptions options)
+    {
+        throw new InvalidOperationException("The dependency injection source generator did not generate a service provider for this configuration.");
+    }
+
+    /// <summary>
     /// 将源生成注册应用到指定服务集合
-    /// <para>此方法会被源生成重写, 执行检测到的注册服务</para>
+    /// <para>生成器会重写此方法, 执行检测到的注册服务</para>
     /// </summary>
     public virtual IServiceCollection Build(IServiceCollection services)
     {

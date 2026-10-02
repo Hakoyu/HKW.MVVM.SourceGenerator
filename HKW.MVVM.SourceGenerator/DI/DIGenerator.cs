@@ -213,6 +213,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
                 context,
                 configurationRegistrations
             );
+            AnalyzeDependencyGraph(context, compilation, uniqueRegistrations);
             AddConfigurationSource(context, compilation, configuration, uniqueRegistrations);
         }
     }
@@ -243,6 +244,174 @@ internal sealed class DIGenerator : IIncrementalGenerator
         return uniqueRegistrations.ToImmutable();
     }
 
+    private static void AnalyzeDependencyGraph(
+        SourceProductionContext context,
+        Compilation compilation,
+        ImmutableArray<Registration> registrations
+    )
+    {
+        var nodes = new List<RegistrationNode>();
+        foreach (var registration in registrations)
+        {
+            if (registration.ImplementationType is not INamedTypeSymbol implementationType)
+                continue;
+            var constructor = SelectConstructor(implementationType);
+            if (constructor is null)
+                continue;
+            var dependencies = constructor
+                .Parameters.Select(parameter => parameter.Type)
+                .Concat(
+                    GetInjectedProperties(compilation, implementationType)
+                        .Select(property => property.Type)
+                )
+                .Select(GetDependencyInfo)
+                .ToArray();
+            nodes.Add(new RegistrationNode(registration, dependencies));
+        }
+
+        var reported = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in nodes)
+            AnalyzeDependencyNode(
+                context,
+                nodes,
+                node,
+                new List<RegistrationNode>(),
+                null,
+                reported
+            );
+    }
+
+    private static void AnalyzeDependencyNode(
+        SourceProductionContext context,
+        List<RegistrationNode> nodes,
+        RegistrationNode node,
+        List<RegistrationNode> path,
+        RegistrationNode? singleton,
+        HashSet<string> reported
+    )
+    {
+        var cycleIndex = path.IndexOf(node);
+        if (cycleIndex >= 0)
+        {
+            var cycleNodes = path.Skip(cycleIndex).ToArray();
+            var chain = string.Join(
+                " -> ",
+                cycleNodes
+                    .Select(item => item.Registration.ServiceType.GetName())
+                    .Concat(new[] { node.Registration.ServiceType.GetName() })
+            );
+            var cycleKey = string.Join(
+                "|",
+                cycleNodes
+                    .Select(item => item.Registration.ServiceType.GetFullName())
+                    .OrderBy(name => name, StringComparer.Ordinal)
+            );
+            if (reported.Add($"cycle:{cycleKey}"))
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        DIDescriptors.CircularDependency,
+                        node.Registration.Location,
+                        chain
+                    )
+                );
+            }
+            return;
+        }
+
+        if (singleton is not null && GetLifetime(node.Registration) == GraphLifetime.Scoped)
+        {
+            var chain = string.Join(
+                " -> ",
+                path.Select(item => item.Registration.ServiceType.GetName())
+                    .Concat(new[] { node.Registration.ServiceType.GetName() })
+            );
+            var key = $"scope:{singleton.Registration.ServiceType}:{node.Registration.ServiceType}";
+            if (reported.Add(key))
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        DIDescriptors.CaptiveScopedDependency,
+                        singleton.Registration.Location,
+                        singleton.Registration.ServiceType.GetName(),
+                        node.Registration.ServiceType.GetName(),
+                        chain
+                    )
+                );
+            }
+            return;
+        }
+
+        singleton ??= GetLifetime(node.Registration) == GraphLifetime.Singleton ? node : null;
+        path.Add(node);
+        foreach (var dependency in node.Dependencies)
+        {
+            if (IsBuiltInDependency(dependency.Type))
+                continue;
+            var candidates = nodes
+                .Where(candidate =>
+                    SymbolEqualityComparer.Default.Equals(
+                        candidate.Registration.ServiceType,
+                        dependency.Type
+                    )
+                )
+                .ToArray();
+            if (candidates.Length == 0)
+            {
+                if (!dependency.IsEnumerable)
+                {
+                    var key = $"missing:{node.Registration.ServiceType}:{dependency.Type}";
+                    if (reported.Add(key))
+                    {
+                        context.ReportDiagnostic(
+                            Diagnostic.Create(
+                                DIDescriptors.PossiblyMissingDependency,
+                                node.Registration.Location,
+                                node.Registration.ServiceType.GetName(),
+                                dependency.Type.GetName()
+                            )
+                        );
+                    }
+                }
+                continue;
+            }
+
+            if (dependency.IsEnumerable)
+            {
+                foreach (var candidate in candidates)
+                    AnalyzeDependencyNode(context, nodes, candidate, path, singleton, reported);
+            }
+            else
+            {
+                AnalyzeDependencyNode(
+                    context,
+                    nodes,
+                    candidates[candidates.Length - 1],
+                    path,
+                    singleton,
+                    reported
+                );
+            }
+        }
+        path.RemoveAt(path.Count - 1);
+    }
+
+    private static GraphLifetime GetLifetime(Registration registration) =>
+        registration.MethodName switch
+        {
+            "RegisterScoped" => GraphLifetime.Scoped,
+            "RegisterSingleton" or "RegisterLazySingleton" => GraphLifetime.Singleton,
+            _ => GraphLifetime.Transient,
+        };
+
+    private static bool IsBuiltInDependency(ITypeSymbol type)
+    {
+        var name = type.GetFullName();
+        return name == "System.IServiceProvider"
+            || name == "Microsoft.Extensions.DependencyInjection.IServiceScopeFactory"
+            || name == "Microsoft.Extensions.DependencyInjection.IServiceProviderIsService";
+    }
+
     private static bool IsSameRegistration(Registration left, Registration right) =>
         left.MethodName == right.MethodName
         && left.IsServiceMapping == right.IsServiceMapping
@@ -265,10 +434,14 @@ internal sealed class DIGenerator : IIncrementalGenerator
         SourceProductionContext context,
         Compilation compilation,
         IndentedTextWriter writer,
-        Registration registration
+        Registration registration,
+        bool reportDiagnostics = true
     )
     {
-        if (TryCreateFactory(context, compilation, registration, out var factory) is false)
+        if (
+            TryCreateFactory(context, compilation, registration, reportDiagnostics, out var factory)
+            is false
+        )
             return;
 
         writer.Write(registration.MethodName);
@@ -296,6 +469,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
         IEnumerable<Registration> registrations
     )
     {
+        var registrationArray = registrations.ToArray();
         var stringStream = new StringWriter();
         var writer = new IndentedTextWriter(stringStream);
         var namespaceName = configuration.Symbol.ContainingNamespace.IsGlobalNamespace
@@ -317,14 +491,6 @@ internal sealed class DIGenerator : IIncrementalGenerator
         writer.WriteLine($"{accessibility} partial class {configuration.Symbol.Name}");
         writer.WriteLine("{");
         writer.Indent++;
-        writer.WriteLine("/// <summary>延迟创建的配置单例实例</summary>");
-        writer.WriteLine(GeneratorHelper.GeneratedCodeAttributeName);
-        writer.WriteLine(GeneratorHelper.DebuggerBrowsableNeverAttributeName);
-        writer.WriteLine(
-            $"private static readonly global::System.Lazy<{configuration.Symbol.Name}> _instance = new(() => new());"
-        );
-        writer.WriteLine($"public static {configuration.Symbol.Name} Instance => _instance.Value;");
-        writer.WriteLine();
         writer.WriteLine("/// <summary>将此配置中的全部源生成注册应用到指定服务集合</summary>");
         writer.WriteLine(GeneratorHelper.GeneratedCodeAttributeName);
         writer.WriteLine(
@@ -342,11 +508,13 @@ internal sealed class DIGenerator : IIncrementalGenerator
         writer.WriteLine("throw new global::System.ArgumentNullException(nameof(services));");
         writer.Indent--;
         writer.WriteLine("Configure(services);");
-        foreach (var registration in registrations)
+        foreach (var registration in registrationArray)
             AppendRegistration(context, compilation, writer, registration);
         writer.WriteLine("return services;");
         writer.Indent--;
         writer.WriteLine("}");
+        writer.WriteLine();
+        AppendGeneratedServiceProvider(compilation, writer, registrationArray);
         writer.Indent--;
         writer.WriteLine("}");
         if (namespaceName is not null)
@@ -361,10 +529,134 @@ internal sealed class DIGenerator : IIncrementalGenerator
         );
     }
 
+    private static void AppendGeneratedServiceProvider(
+        Compilation compilation,
+        IndentedTextWriter writer,
+        IReadOnlyList<Registration> registrations
+    )
+    {
+        writer.WriteLine("/// <inheritdoc/>");
+        writer.WriteLine(GeneratorHelper.GeneratedCodeAttributeName);
+        writer.WriteLine(
+            "public override global::HKW.MVVM.SourceGenerator.DIServiceProvider BuildServiceProvider()"
+        );
+        writer.WriteLine(
+            "    => BuildServiceProvider(new global::HKW.MVVM.SourceGenerator.ServiceProviderOptions());"
+        );
+        writer.WriteLine();
+        writer.WriteLine("/// <inheritdoc/>");
+        writer.WriteLine(GeneratorHelper.GeneratedCodeAttributeName);
+        writer.WriteLine(
+            "public override global::HKW.MVVM.SourceGenerator.DIServiceProvider BuildServiceProvider("
+        );
+        writer.Indent++;
+        writer.WriteLine("global::HKW.MVVM.SourceGenerator.ServiceProviderOptions options)");
+        writer.Indent--;
+        writer.WriteLine("{");
+        writer.Indent++;
+        writer.WriteLine("if (options is null)");
+        writer.Indent++;
+        writer.WriteLine("throw new global::System.ArgumentNullException(nameof(options));");
+        writer.Indent--;
+        writer.WriteLine(
+            "var services = Build(new global::Microsoft.Extensions.DependencyInjection.ServiceCollection());"
+        );
+        writer.WriteLine(
+            "var metadata = new global::HKW.MVVM.SourceGenerator.DIServiceRegistrationMetadata[]"
+        );
+        writer.WriteLine("{");
+        writer.Indent++;
+        foreach (var registration in registrations)
+            AppendRegistrationMetadata(compilation, writer, registration);
+        writer.Indent--;
+        writer.WriteLine("};");
+        writer.WriteLine(
+            "return new global::HKW.MVVM.SourceGenerator.DIServiceProvider(services, options, metadata);"
+        );
+        writer.Indent--;
+        writer.WriteLine("}");
+    }
+
+    private static void AppendRegistrationMetadata(
+        Compilation compilation,
+        IndentedTextWriter writer,
+        Registration registration
+    )
+    {
+        if (registration.ImplementationType is not INamedTypeSymbol implementationType)
+            return;
+        var constructor = SelectConstructor(implementationType);
+        if (constructor is null)
+            return;
+        var dependencies = constructor
+            .Parameters.Select(parameter => parameter.Type)
+            .Concat(
+                GetInjectedProperties(compilation, implementationType)
+                    .Select(property => property.Type)
+            )
+            .Select(GetDependencyInfo)
+            .ToArray();
+        var lifetime = registration.MethodName switch
+        {
+            "RegisterScoped" => "Scoped",
+            "RegisterSingleton" or "RegisterLazySingleton" => "Singleton",
+            _ => "Transient",
+        };
+        writer.WriteLine("new global::HKW.MVVM.SourceGenerator.DIServiceRegistrationMetadata(");
+        writer.Indent++;
+        writer.WriteLine($"typeof({registration.ServiceType.GetGlobalFullName()}),");
+        writer.WriteLine(
+            $"global::Microsoft.Extensions.DependencyInjection.ServiceLifetime.{lifetime},"
+        );
+        writer.WriteLine("new global::HKW.MVVM.SourceGenerator.DIServiceDependencyMetadata[]");
+        writer.WriteLine("{");
+        writer.Indent++;
+        foreach (var dependency in dependencies)
+        {
+            writer.WriteLine(
+                $"new global::HKW.MVVM.SourceGenerator.DIServiceDependencyMetadata(typeof({dependency.Type.GetGlobalFullName()}), {dependency.IsEnumerable.ToString().ToLowerInvariant()}),"
+            );
+        }
+        writer.Indent--;
+        writer.WriteLine("},");
+        writer.WriteLine("false");
+        writer.Indent--;
+        writer.WriteLine("),");
+    }
+
+    private static IMethodSymbol? SelectConstructor(INamedTypeSymbol implementationType)
+    {
+        var constructors = implementationType.InstanceConstructors;
+        var markedConstructors = constructors
+            .Where(static constructor => constructor.HasAttribute(ConstructorAttributeName))
+            .ToImmutableArray();
+        if (constructors.Length == 1 && markedConstructors.Length <= 1)
+            return constructors[0];
+        return markedConstructors.Length == 1 ? markedConstructors[0] : null;
+    }
+
+    private static DependencyInfo GetDependencyInfo(ITypeSymbol type)
+    {
+        if (
+            type is INamedTypeSymbol namedType
+            && namedType.IsGenericType
+            && namedType.TypeArguments.Length == 1
+        )
+        {
+            var definition = namedType.OriginalDefinition.ToDisplayString();
+            if (definition == "System.Lazy<T>")
+                return new DependencyInfo(namedType.TypeArguments[0], false);
+            if (definition == "System.Collections.Generic.IEnumerable<T>")
+                return new DependencyInfo(namedType.TypeArguments[0], true);
+        }
+        return new DependencyInfo(type, false);
+    }
+
     private static bool TryCreateFactory(
         SourceProductionContext context,
         Compilation compilation,
         Registration registration,
+        bool reportDiagnostics,
         out string factory
     )
     {
@@ -381,7 +673,8 @@ internal sealed class DIGenerator : IIncrementalGenerator
                 registration.Location,
                 registration.ImplementationType.GetName()
             );
-            context.ReportDiagnostic(diagnostic);
+            if (reportDiagnostics)
+                context.ReportDiagnostic(diagnostic);
             return false;
         }
 
@@ -398,7 +691,8 @@ internal sealed class DIGenerator : IIncrementalGenerator
                 implementationType.GetName(),
                 registration.ServiceType.GetName()
             );
-            context.ReportDiagnostic(diagnostic);
+            if (reportDiagnostics)
+                context.ReportDiagnostic(diagnostic);
             return false;
         }
 
@@ -418,7 +712,8 @@ internal sealed class DIGenerator : IIncrementalGenerator
                 registration.Location,
                 implementationType.GetName()
             );
-            context.ReportDiagnostic(diagnostic);
+            if (reportDiagnostics)
+                context.ReportDiagnostic(diagnostic);
             return false;
         }
 
@@ -429,7 +724,8 @@ internal sealed class DIGenerator : IIncrementalGenerator
                 constructor.Locations.FirstOrDefault() ?? registration.Location,
                 implementationType.GetName()
             );
-            context.ReportDiagnostic(diagnostic);
+            if (reportDiagnostics)
+                context.ReportDiagnostic(diagnostic);
             return false;
         }
 
@@ -453,7 +749,8 @@ internal sealed class DIGenerator : IIncrementalGenerator
                     property.Name,
                     implementationType.GetName()
                 );
-                context.ReportDiagnostic(diagnostic);
+                if (reportDiagnostics)
+                    context.ReportDiagnostic(diagnostic);
                 return false;
             }
         }
@@ -529,6 +826,25 @@ internal sealed class DIGenerator : IIncrementalGenerator
     {
         public INamedTypeSymbol Symbol { get; } = symbol;
         public ClassDeclarationSyntax Syntax { get; } = syntax;
+    }
+
+    private enum GraphLifetime
+    {
+        Transient,
+        Scoped,
+        Singleton,
+    }
+
+    private sealed class DependencyInfo(ITypeSymbol type, bool isEnumerable)
+    {
+        public ITypeSymbol Type { get; } = type;
+        public bool IsEnumerable { get; } = isEnumerable;
+    }
+
+    private sealed class RegistrationNode(Registration registration, DependencyInfo[] dependencies)
+    {
+        public Registration Registration { get; } = registration;
+        public DependencyInfo[] Dependencies { get; } = dependencies;
     }
 
     private sealed class RegistrationScan(

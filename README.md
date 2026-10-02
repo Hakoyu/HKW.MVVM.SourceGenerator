@@ -423,29 +423,63 @@ public partial class AppServices : DIConfigurationBase
 - 非泛型；
 - 具有 `public` 或 `internal` 无参数构造函数。
 
-不满足以上任意一点会触发 `HKWDI006`。
+不满足以上任意一点会触发 `DI006`。
 
-生成器会为该类型生成单例入口，并重写注册方法：
+生成器会重写注册方法：
 
 ```csharp
 public partial class AppServices
 {
-    private static readonly Lazy<AppServices> s_instance;
-    public static AppServices Instance { get; }
     public override IServiceCollection Build(IServiceCollection services);
+    public override DIServiceProvider BuildServiceProvider();
+    public override DIServiceProvider BuildServiceProvider(ServiceProviderOptions options);
 }
 ```
 
-`Instance` 通过 `Lazy<AppServices>` 延迟且线程安全地创建配置单例。基类的 `Build()` 会创建新的 `ServiceCollection`；`Build(IServiceCollection)` 接受一个已存在的服务集合，写入注册后返回同一个实例，便于和其他注册来源组合：
+创建配置实例后，基类的 `Build()` 会创建新的 `ServiceCollection`；`Build(IServiceCollection)` 接受一个已存在的服务集合，写入注册后返回同一个实例，便于和其他注册来源组合：
 
 ```csharp
-var services = AppServices.Instance.Build();
+var configuration = new AppServices();
+var services = configuration.Build();
 // 或者传入自定义的服务集合
 var services = new ServiceCollection();
-AppServices.Instance.Build(services);
+configuration.Build(services);
 ```
 
-无参数的 `Register*` 方法只是编译期标记，本身不执行任何操作。生成器只收集 `Configure(IServiceCollection)` 方法中的直接调用。
+也可以跳过 Microsoft DI 的运行时容器，直接创建源生成的轻量 Provider：
+
+```csharp
+using var provider = new AppServices().BuildServiceProvider();
+var logger = provider.GetRequiredService<ILogger>();
+
+using var scope = provider.CreateScope();
+var requestContext = scope.ServiceProvider.GetRequiredService<IRequestContext>();
+```
+
+`BuildServiceProvider()` 会复用 `Build(IServiceCollection)` 创建服务集合，并执行一次 `Configure(IServiceCollection)`，因此其中的普通语句和自定义注册方法副作用仍会发生。轻量 Provider 包含生成器识别到的 `Register*` 注册，也接受通过工厂方法添加的手动注册：
+
+```csharp
+services.AddSingleton<IClock>(_ => new SystemClock());
+services.AddScoped<IHandler>(provider =>
+    new Handler(provider.GetRequiredService<IClock>()));
+```
+
+`BuildServiceProvider()` 会将 `Build(IServiceCollection)` 收集到的手动工厂和源生成工厂统一交给 sealed `DIServiceProvider`；服务类型通过预构建索引查询。`DIServiceProvider` 会在创建时检查每个描述符是否为非 keyed、闭合服务类型且具有 `ImplementationFactory`。工厂沿用 Transient、Scoped 或 Singleton 生命周期，并可解析其他手动或源生成服务。类型注册（如 `AddSingleton<TService, TImplementation>()`）、实例注册和 keyed service 不受支持；遇到这些描述符时会立即抛出 `InvalidOperationException`。原有 `Build()` 仍可与 Microsoft DI 配合以支持全部描述符形式。
+
+可通过本库的 `ServiceProviderOptions` 启用与 Microsoft Provider 对应的验证：
+
+```csharp
+using var provider = new AppServices().BuildServiceProvider(
+    new HKW.MVVM.SourceGenerator.ServiceProviderOptions
+    {
+        ValidateScopes = true,
+        ValidateOnBuild = true,
+    });
+```
+
+`ValidateScopes` 禁止从根 Provider 解析 Scoped 服务，也会阻止 Singleton 直接或间接捕获 Scoped 服务。`ValidateOnBuild` 在创建 Provider 时验证生成器静态已知的依赖图，并聚合错误，但不会实例化服务或执行用户工厂。无法静态分析的工厂依赖仍在实际解析时验证。
+
+无参数的 `Register*` 方法只是编译期标记，本身不执行任何操作。生成器只收集 `Configure(IServiceCollection)` 方法中的直接 `Register*` 调用。标准 `AddTransient`、`AddScoped` 和 `AddSingleton` 工厂由 `Build(IServiceCollection)` 在运行时收集，生成器不分析其 lambda 或依赖关系，因此它们不进入 `ValidateOnBuild` 的静态依赖图；相关错误会在实际解析服务时暴露。
 
 自定义泛型方法可以使用 `[DICustomServiceRegistrar]` 指定需要注册的泛型参数。生成器会分析该方法在 `Configure` 中的闭合泛型调用，并按指定参数生成瞬态注册；方法体仍会在 `Configure` 执行时正常运行：
 
@@ -490,11 +524,21 @@ private void RegisterMVVM<TViewModel, TCache>()
 
 单类型重载（如 `Register<T>()`）等价于 `Register<T, T>()`，把 `T` 既作为服务类型也作为实现类型注册。
 
+轻量 Provider 的生命周期规则与上表一致：
+
+- Transient 每次解析创建，并由创建它的根容器或 scope 追踪释放；
+- Scoped 在每个 scope 内只创建一次，从根容器直接解析时归根作用域；
+- Singleton 和 LazySingleton 都在首次解析时线程安全地创建一次，工厂返回的 `null` 也会被缓存；
+- 同一服务类型有多个实现时，单项解析返回最后一个注册，`IEnumerable<T>` 按声明顺序返回全部；显式注册的 `IEnumerable<T>` 优先，任意未注册的闭合 `IEnumerable<T>` 返回空数组；
+- Provider 内置提供 `IServiceProvider`、`IServiceScopeFactory` 和 `IServiceProviderIsService`；
+- Provider/scope 按创建逆序释放并按引用去重；`DisposeAsync()` 优先使用 `IAsyncDisposable`，释放失败时仍会继续处理剩余服务并汇总多个异常；
+- Provider/scope 释放后继续解析会抛出 `ObjectDisposedException`，释放竞态中新创建的 disposable 会被立即释放，循环依赖会抛出包含依赖链的 `InvalidOperationException`。
+
 ### 构造函数选择
 
 - 实现类型只有一个实例构造函数时，直接使用它。
-- 有多个实例构造函数时，必须且只能有一个标注 `[DIConstructor]`，否则报 `HKWDI001`。
-- 选中的构造函数必须是 `public`、`internal` 或 `protected internal`，否则报 `HKWDI003`。
+- 有多个实例构造函数时，必须且只能有一个标注 `[DIConstructor]`，否则报 `DI001`。
+- 选中的构造函数必须是 `public`、`internal` 或 `protected internal`，否则报 `DI003`。
 
 ```csharp
 public sealed class Greeter
@@ -522,7 +566,7 @@ public sealed class Greeter
 ```
 
 - 只扫描实现类型及其在**当前程序集**内声明的基类；引用其他程序集的基类会被忽略。
-- 属性必须具有 `public`、`internal` 或 `protected internal` 的 setter（含 `init`），否则报 `HKWDI002`，且该服务的整个注册都会被跳过。
+- 属性必须具有 `public`、`internal` 或 `protected internal` 的 setter（含 `init`），否则报 `DI002`，且该服务的整个注册都会被跳过。
 - 不支持静态属性和索引器。
 
 ### 参数解析
@@ -541,15 +585,20 @@ public sealed class Greeter
 
 | ID | 级别 | 说明 |
 |---|---|---|
-| `HKWDI001` | Error | 实现类型有多个构造函数，但没有一个标注 `[DIConstructor]` |
-| `HKWDI002` | Error | 标注 `[DIProperty]` 的属性缺少可访问的 setter |
-| `HKWDI003` | Error | 选中的构造函数可访问性低于 `internal` |
-| `HKWDI004` | Error | 实现类型不是非抽象的封闭类 |
-| `HKWDI005` | Error | 实现类型不能转换为服务类型 |
-| `HKWDI006` | Error | `DIConfigurationBase` 派生类型不符合配置类约束 |
-| `HKWDI007` | Error | `[DICustomServiceRegistrar]` 指定的泛型名称不是目标方法的类型参数 |
-| `HKWDI008` | Error | `[DICustomServiceRegistrar]` 的泛型名称与注册方式数量不一致 |
-| `HKWDI009` | Warning | 同一配置中服务类型、实现类型和注册方式完全相同的注册出现多次；仅生成首个注册 |
+| `DI001` | Error | 实现类型有多个构造函数，但没有一个标注 `[DIConstructor]` |
+| `DI002` | Error | 标注 `[DIProperty]` 的属性缺少可访问的 setter |
+| `DI003` | Error | 选中的构造函数可访问性低于 `internal` |
+| `DI004` | Error | 实现类型不是非抽象的封闭类 |
+| `DI005` | Error | 实现类型不能转换为服务类型 |
+| `DI006` | Error | `DIConfigurationBase` 派生类型不符合配置类约束 |
+| `DI007` | Error | `[DICustomServiceRegistrar]` 指定的泛型名称不是目标方法的类型参数 |
+| `DI008` | Error | `[DICustomServiceRegistrar]` 的泛型名称与注册方式数量不一致 |
+| `DI009` | Warning | 同一配置中服务类型、实现类型和注册方式完全相同的注册出现多次；仅生成首个注册 |
+| `DI010` | Error | 静态已知的依赖图包含循环依赖 |
+| `DI011` | Error | Singleton 通过静态已知路径捕获 Scoped 服务 |
+| `DI012` | Warning | 静态已知依赖未出现在注册图中，可能需要由 `Configure` 提供 |
+
+`DI010`–`DI012` 同时分析源生成注册和可识别的标准手动工厂注册。依赖不透明的工厂保守降级到运行时验证。
 
 ## 使用限制
 
@@ -567,6 +616,8 @@ MVVM：
 - 配置类必须直接继承 `DIConfigurationBase`，并满足顶层、非抽象、`partial`、非泛型和可访问无参数构造函数等约束。
 - `Register*` 调用只有直接出现在 `Configure(IServiceCollection)` 中才会被收集；自定义泛型注册方法应使用 `[DICustomServiceRegistrar]`。
 - 泛型服务/实现类型、开放泛型定义暂不支持。
+- 轻量 Provider 只接受具有 `ImplementationFactory` 的非 keyed 手写 `ServiceDescriptor`；类型/实例描述符、keyed service 和开放泛型不受支持，需要这些功能时请继续使用 `Build()` 与 Microsoft DI。
+- `ValidateOnBuild` 只验证生成器能够静态描述的依赖，不执行用户工厂；完全不透明的工厂依赖仅能在解析时发现。
 - 引用其他程序集的实现类型只有在只有一个可访问构造函数时才能使用；`[DIConstructor]`/`[DIProperty]` 只对当前编译中的类型成员生效。
 
 ## 开发与验证

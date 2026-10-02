@@ -90,4 +90,31 @@ internal static class DIDescriptors
         DiagnosticSeverity.Warning,
         true
     );
+
+    public static readonly DiagnosticDescriptor CircularDependency = new(
+        "DI010",
+        "Dependency injection graph contains a cycle",
+        "A circular dependency was detected: {0}",
+        Category,
+        DiagnosticSeverity.Error,
+        true
+    );
+
+    public static readonly DiagnosticDescriptor CaptiveScopedDependency = new(
+        "DI011",
+        "Singleton captures a scoped service",
+        "Singleton service '{0}' cannot consume scoped service '{1}' through dependency path: {2}",
+        Category,
+        DiagnosticSeverity.Error,
+        true
+    );
+
+    public static readonly DiagnosticDescriptor PossiblyMissingDependency = new(
+        "DI012",
+        "Dependency may not be registered",
+        "Service '{0}' requires '{1}', which is not present in the statically known registration graph and must be supplied by Configure",
+        Category,
+        DiagnosticSeverity.Warning,
+        true
+    );
 }
