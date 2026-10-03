@@ -24,7 +24,7 @@ MVVM：
 
 ## 安装
 
-项目目标框架为 `.NET Standard 2.1`，不支持 .NET Framework 等仅兼容 `.NET Standard 2.0` 的目标。在需要使用生成器的应用或类库项目中添加以下包引用。版本号请根据实际发布版本调整：
+Roslyn 源生成器面向 `.NET Standard 2.0`，可由 Visual Studio 的编译器宿主加载和调试。DI 轻量 Provider 会作为源码生成到使用方程序集，不会为生成器额外引入 `Microsoft.Bcl.AsyncInterfaces`。在需要使用生成器的应用或类库项目中添加以下包引用。版本号请根据实际发布版本调整：
 
 ```xml
 <ItemGroup>
@@ -531,7 +531,7 @@ private void RegisterMVVM<TViewModel, TCache>()
 - Singleton 和 LazySingleton 都在首次解析时线程安全地创建一次，工厂返回的 `null` 也会被缓存；
 - 同一服务类型有多个实现时，单项解析返回最后一个注册，`IEnumerable<T>` 按声明顺序返回全部；显式注册的 `IEnumerable<T>` 优先，任意未注册的闭合 `IEnumerable<T>` 返回空数组；
 - Provider 内置提供 `IServiceProvider`、`IServiceScopeFactory` 和 `IServiceProviderIsService`；
-- Provider/scope 按创建逆序释放并按引用去重；`DisposeAsync()` 优先使用 `IAsyncDisposable`，释放失败时仍会继续处理剩余服务并汇总多个异常；
+- Provider/scope 按创建逆序释放并按引用去重；使用方编译环境提供 `IAsyncDisposable` 时生成 `DisposeAsync()` 并优先异步释放，否则自动降级为仅同步 `IDisposable`；释放失败时仍会继续处理剩余服务并汇总多个异常；
 - Provider/scope 释放后继续解析会抛出 `ObjectDisposedException`，释放竞态中新创建的 disposable 会被立即释放，循环依赖会抛出包含依赖链的 `InvalidOperationException`。
 
 ### 构造函数选择

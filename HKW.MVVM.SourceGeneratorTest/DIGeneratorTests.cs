@@ -178,6 +178,18 @@ public sealed class DIGeneratorTests
     }
 
     [TestMethod]
+    public void ProviderRuntimeIsGeneratedIntoConsumerAssemblyWithAsyncDisposal()
+    {
+        Assert.AreSame(typeof(DIGeneratorTests).Assembly, typeof(DIServiceProvider).Assembly);
+        Assert.IsTrue(typeof(IAsyncDisposable).IsAssignableFrom(typeof(DIServiceProvider)));
+        Assert.IsTrue(typeof(IAsyncDisposable).IsAssignableFrom(typeof(DIServiceScope)));
+
+        DIConfigurationBase configuration = new TestServices();
+        using var provider = configuration.BuildServiceProvider();
+        Assert.IsNotNull(provider.GetRequiredService<IInjectedService>());
+    }
+
+    [TestMethod]
     public void GeneratedProviderCreatesSingletonOnceAcrossThreads()
     {
         ConcurrentSingleton.Reset();

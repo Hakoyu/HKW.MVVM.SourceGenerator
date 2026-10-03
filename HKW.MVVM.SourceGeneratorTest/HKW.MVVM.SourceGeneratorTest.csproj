@@ -21,7 +21,7 @@
     <PackageReference Include="HKW.MVVM" Version="0.1.3" />
     <PackageReference
       Include="HKW.SourceGeneratorUtils"
-      Version="0.1.13"
+      Version="0.2.1"
       GeneratePathProperty="true"
     />
     <Analyzer Include="$(PkgHKW_SourceGeneratorUtils)\lib\netstandard2.0\*.dll" />

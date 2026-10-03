@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <Version>0.1.8</Version>
     <Company>HKW</Company>
     <Authors>HKW</Authors>
@@ -100,7 +100,7 @@
     <!-- 引用的包 -->
     <PackageReference
       Include="HKW.SourceGeneratorUtils"
-      Version="0.1.13"
+      Version="0.2.1"
       PrivateAssets="all"
       GeneratePathProperty="true"
     />
@@ -115,5 +115,18 @@
     </None>
     <!-- 项目分析器必须引用包, 否则 FileNotFoundException -->
     <Analyzer Include="$(PkgHKW_SourceGeneratorUtils)\lib\netstandard2.0\*.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="DI\DIServiceProvider.cs" />
+    <Compile Remove="DI\ServiceProviderOptions.cs" />
+    <EmbeddedResource
+      Include="DI\DIServiceProvider.cs"
+      LogicalName="HKW.MVVM.SourceGenerator.DIServiceProvider.cs"
+    />
+    <EmbeddedResource
+      Include="DI\ServiceProviderOptions.cs"
+      LogicalName="HKW.MVVM.SourceGenerator.ServiceProviderOptions.cs"
+    />
   </ItemGroup>
 </Project>

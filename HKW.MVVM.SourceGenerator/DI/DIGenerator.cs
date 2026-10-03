@@ -1,5 +1,6 @@
 using System.CodeDom.Compiler;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Text;
 using HKW.SourceGeneratorUtils;
@@ -13,6 +14,13 @@ namespace HKW.MVVM.SourceGenerator;
 [Generator]
 internal sealed class DIGenerator : IIncrementalGenerator
 {
+    private const string AsyncDisposableTypeName = "System.IAsyncDisposable";
+    private const string ValueTaskTypeName = "System.Threading.Tasks.ValueTask";
+    private const string DIServiceProviderResourceName =
+        "HKW.MVVM.SourceGenerator.DIServiceProvider.cs";
+    private const string ServiceProviderOptionsResourceName =
+        "HKW.MVVM.SourceGenerator.ServiceProviderOptions.cs";
+
     private static string RegistrationsTypeName { get; } =
         typeof(DIConfigurationBase).GetFullName();
     private static string CustomRegistrarAttributeName { get; } =
@@ -24,6 +32,17 @@ internal sealed class DIGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        var supportsAsyncDisposal = context.CompilationProvider.Select(
+            static (compilation, _) =>
+                compilation.GetTypeByMetadataName(AsyncDisposableTypeName) is not null
+                && compilation.GetTypeByMetadataName(ValueTaskTypeName) is not null
+        );
+        context.RegisterSourceOutput(
+            supportsAsyncDisposal,
+            static (productionContext, supportsAsync) =>
+                GenerateServiceProviderSupport(productionContext, supportsAsync)
+        );
+
         var configurations = context
             .SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => node is ClassDeclarationSyntax,
@@ -45,6 +64,37 @@ internal sealed class DIGenerator : IIncrementalGenerator
             static (productionContext, input) =>
                 Generate(productionContext, input.Left.Left, input.Left.Right, input.Right)
         );
+    }
+
+    private static void GenerateServiceProviderSupport(
+        SourceProductionContext context,
+        bool supportsAsyncDisposal
+    )
+    {
+        var serviceProviderSource = LoadEmbeddedSource(DIServiceProviderResourceName);
+        if (supportsAsyncDisposal)
+        {
+            serviceProviderSource =
+                $"#define HKW_DI_ASYNC_DISPOSABLE{Environment.NewLine}{serviceProviderSource}";
+        }
+
+        context.AddSource(
+            "DIServiceProvider.g.cs",
+            SourceText.From(serviceProviderSource, Encoding.UTF8)
+        );
+        context.AddSource(
+            "ServiceProviderOptions.g.cs",
+            SourceText.From(LoadEmbeddedSource(ServiceProviderOptionsResourceName), Encoding.UTF8)
+        );
+    }
+
+    private static string LoadEmbeddedSource(string resourceName)
+    {
+        using var stream = typeof(DIGenerator).Assembly.GetManifestResourceStream(resourceName);
+        if (stream is null)
+            throw new InvalidOperationException($"Embedded source '{resourceName}' was not found.");
+        using var reader = new StreamReader(stream, Encoding.UTF8, true);
+        return reader.ReadToEnd();
     }
 
     private static ConfigurationInfo? GetConfiguration(GeneratorSyntaxContext context)
@@ -488,10 +538,12 @@ internal sealed class DIGenerator : IIncrementalGenerator
             writer.WriteLine("{");
             writer.Indent++;
         }
-        writer.WriteLine($"{accessibility} partial class {configuration.Symbol.Name}");
+        writer.WriteLine(
+            $"{accessibility} partial class {configuration.Symbol.Name} : global::HKW.MVVM.SourceGenerator.IDIGeneratedServiceProviderFactory"
+        );
         writer.WriteLine("{");
         writer.Indent++;
-        writer.WriteLine("/// <summary>将此配置中的全部源生成注册应用到指定服务集合</summary>");
+        writer.WriteLine("/// <inheritdoc/>");
         writer.WriteLine(GeneratorHelper.GeneratedCodeAttributeName);
         writer.WriteLine(
             "public override global::Microsoft.Extensions.DependencyInjection.IServiceCollection Build("
@@ -535,19 +587,19 @@ internal sealed class DIGenerator : IIncrementalGenerator
         IReadOnlyList<Registration> registrations
     )
     {
-        writer.WriteLine("/// <inheritdoc/>");
+        writer.WriteLine("/// <summary>创建由源生成器实现的轻量服务提供程序</summary>");
         writer.WriteLine(GeneratorHelper.GeneratedCodeAttributeName);
         writer.WriteLine(
-            "public override global::HKW.MVVM.SourceGenerator.DIServiceProvider BuildServiceProvider()"
+            "public global::HKW.MVVM.SourceGenerator.DIServiceProvider BuildServiceProvider()"
         );
         writer.WriteLine(
             "    => BuildServiceProvider(new global::HKW.MVVM.SourceGenerator.ServiceProviderOptions());"
         );
         writer.WriteLine();
-        writer.WriteLine("/// <inheritdoc/>");
+        writer.WriteLine("/// <summary>使用指定验证选项创建源生成的轻量服务提供程序</summary>");
         writer.WriteLine(GeneratorHelper.GeneratedCodeAttributeName);
         writer.WriteLine(
-            "public override global::HKW.MVVM.SourceGenerator.DIServiceProvider BuildServiceProvider("
+            "public global::HKW.MVVM.SourceGenerator.DIServiceProvider BuildServiceProvider("
         );
         writer.Indent++;
         writer.WriteLine("global::HKW.MVVM.SourceGenerator.ServiceProviderOptions options)");
