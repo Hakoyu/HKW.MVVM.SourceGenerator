@@ -210,8 +210,8 @@ public sealed class DIGeneratorTests
             provider.GetRequiredService<CircularA>()
         );
 
-        Assert.Contains(exception.Message, nameof(CircularA));
-        Assert.Contains(exception.Message, nameof(CircularB));
+        Assert.Contains(nameof(CircularA), exception.Message);
+        Assert.Contains(nameof(CircularB), exception.Message);
     }
 
     [TestMethod]
@@ -221,7 +221,7 @@ public sealed class DIGeneratorTests
             new UnsupportedManualServices().BuildServiceProvider()
         );
 
-        Assert.Contains(exception.Message, "factory method");
+        Assert.Contains("factory method", exception.Message);
     }
 
     [TestMethod]
@@ -235,7 +235,7 @@ public sealed class DIGeneratorTests
             provider.GetRequiredService<OpaqueManualFactoryDependency>()
         );
 
-        Assert.Contains(exception.Message, nameof(IgnoredDependency));
+        Assert.Contains(nameof(IgnoredDependency), exception.Message);
     }
 
     [TestMethod]
@@ -360,8 +360,8 @@ public sealed class DIGeneratorTests
             provider.GetRequiredService<CaptiveSingleton>()
         );
 
-        Assert.Contains(exception.Message, nameof(CaptiveScoped));
-        Assert.Contains(exception.Message, nameof(CaptiveSingleton));
+        Assert.Contains(nameof(CaptiveScoped), exception.Message);
+        Assert.Contains(nameof(CaptiveSingleton), exception.Message);
     }
 
     [TestMethod]
@@ -380,7 +380,7 @@ public sealed class DIGeneratorTests
         );
 
         Assert.AreEqual(0, CaptiveSingleton.ConstructorCount);
-        Assert.Contains(exception.ToString(), nameof(CaptiveScoped));
+        Assert.Contains(nameof(CaptiveScoped), exception.ToString());
     }
 
     [TestMethod]
