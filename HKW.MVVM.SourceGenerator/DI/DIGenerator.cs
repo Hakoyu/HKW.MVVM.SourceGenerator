@@ -407,24 +407,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
                 )
                 .ToArray();
             if (candidates.Length == 0)
-            {
-                if (!dependency.IsEnumerable)
-                {
-                    var key = $"missing:{node.Registration.ServiceType}:{dependency.Type}";
-                    if (reported.Add(key))
-                    {
-                        context.ReportDiagnostic(
-                            Diagnostic.Create(
-                                DIDescriptors.PossiblyMissingDependency,
-                                node.Registration.Location,
-                                node.Registration.ServiceType.GetName(),
-                                dependency.Type.GetName()
-                            )
-                        );
-                    }
-                }
                 continue;
-            }
 
             if (dependency.IsEnumerable)
             {

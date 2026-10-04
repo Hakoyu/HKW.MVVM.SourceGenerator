@@ -108,13 +108,4 @@ internal static class DIDescriptors
         DiagnosticSeverity.Error,
         true
     );
-
-    public static readonly DiagnosticDescriptor PossiblyMissingDependency = new(
-        "DI012",
-        "Dependency may not be registered",
-        "Service '{0}' requires '{1}', which is not present in the statically known registration graph and must be supplied by Configure",
-        Category,
-        DiagnosticSeverity.Warning,
-        true
-    );
 }
