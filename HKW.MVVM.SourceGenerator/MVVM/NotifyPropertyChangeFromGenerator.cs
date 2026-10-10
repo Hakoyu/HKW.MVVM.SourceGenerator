@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 
 namespace HKW.MVVM.SourceGenerator;
 
-internal class NotifyPropertyChangeFromGenerator
+internal sealed class NotifyPropertyChangeFromGenerator
 {
     public static void Generate(ClassInfo classInfo)
     {
@@ -21,56 +21,104 @@ internal class NotifyPropertyChangeFromGenerator
 
     private void Process()
     {
-        var infos = new List<NotifyPropertyChangeFromInfo>();
+        var infoByProperty = new Dictionary<IPropertySymbol, NotifyPropertyChangeFromInfo>();
         foreach (var property in _classInfo.PropertyByName.Values)
         {
             var info = AnalyzeProperty(property);
             if (info is not null)
-                infos.Add(info);
+                infoByProperty.Add(property, info);
         }
-        Generate(infos);
+        AnalyzeForPropertyNames(infoByProperty);
+
+        Generate(infoByProperty);
     }
 
-    private NotifyPropertyChangeFromInfo? AnalyzeProperty(IPropertySymbol propertySymbol)
+    private void AnalyzeForPropertyNames(
+        Dictionary<IPropertySymbol, NotifyPropertyChangeFromInfo> infoByProperty
+    )
+    {
+        var pairs = infoByProperty.ToArray();
+        foreach (var pair in pairs.Where(x => x.Value.ForPropertyNames?.Count > 0))
+        {
+            foreach (var propertyName in pair.Value.ForPropertyNames)
+            {
+                var property = _classInfo.PropertyByName[propertyName];
+
+                if (infoByProperty.TryGetValue(property, out var newInfo) is false)
+                    newInfo = infoByProperty[property] = new(property, "", []);
+                newInfo.PropertyNames.Add(pair.Key.Name);
+            }
+            pair.Value.ForPropertyNames.Clear();
+            pair.Value.ForPropertyNames = null!;
+        }
+        foreach (var info in infoByProperty.Values)
+        {
+            foreach (var param in info.PropertyNames)
+            {
+                if (
+                    _classInfo.PropertyChangedMemberByName.TryGetValue(
+                        param,
+                        out var changedMembers
+                    )
+                    is false
+                )
+                    changedMembers = _classInfo.PropertyChangedMemberByName[param] = [];
+                if (
+                    _classInfo.PropertyChangingMemberByName.TryGetValue(
+                        param,
+                        out var changingMembers
+                    )
+                    is false
+                )
+                    changingMembers = _classInfo.PropertyChangingMemberByName[param] = [];
+                changingMembers.Add(info.ChangingMethodName + "();");
+                changedMembers.Add(info.ChangedMethodName + "();");
+            }
+        }
+    }
+
+    private NotifyPropertyChangeFromInfo? AnalyzeProperty(IPropertySymbol property)
+    {
+        var info = AnalyzeNotifyPropertyChangeFrom(property);
+        info = AnalyzeNotifyPropertyChangeFor(property, info);
+        return info;
+    }
+
+    private NotifyPropertyChangeFromInfo? AnalyzeNotifyPropertyChangeFrom(IPropertySymbol property)
     {
         // 获取特性数据
         if (
-            propertySymbol.TryGetFirstAttribute(
-                MVVMGenerator.NotifyPropertyChangeFrom,
+            property.TryGetFirstAttribute(
+                MVVMGenerator.NotifyPropertyChangeFromAttribute,
                 out var attributeData
             )
             is false
         )
             return null;
-        // 如果有Set方法则异常
-        if (propertySymbol.SetMethod is not null)
+        var attributeLocation = attributeData.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
+            attributeData.ApplicationSyntaxReference.Span
+        );
+        // 如果有Set方法则诊断
+        if (property.SetMethod is not null)
         {
             var diagnostic = Diagnostic.Create(
-                MVVMDescriptors.PropertyHasSetMethod,
-                attributeData.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
-                    attributeData.ApplicationSyntaxReference.Span
-                ),
-                nameof(MVVMGenerator.NotifyPropertyChangeFrom)
+                MVVMDescriptors.AttributePropertyHasSetMethod,
+                attributeLocation,
+                nameof(MVVMGenerator.NotifyPropertyChangeFromAttribute)
             );
             _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
             return null;
         }
         // 获取特性的参数
         var attributeInfo = attributeData.GetInfo()!;
-        if (
-            attributeInfo.TryGetParams<string>(
-                nameof(NotifyPropertyChangeFromAttribute.PropertyNames),
-                out var propertyNames
-            )
-            is false
-        )
+        var propertyNames = attributeInfo.GetParams<string>("propertyNames");
+        if (attributeInfo.TryGetParam<string>("propertyName", out var propertyName))
+            propertyNames = [propertyName, .. propertyNames ?? Array.Empty<string>()];
+        if (propertyNames is null || propertyNames.Length == 0)
             return null;
 
-        var attributeLocation = attributeData.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
-            attributeData.ApplicationSyntaxReference.Span
-        );
         var validPropertyNames = new HashSet<string>();
-        foreach (var propertyName in propertyNames)
+        foreach (var name in propertyNames)
         {
             if (_classInfo.PropertyByName.ContainsKey(propertyName) is false)
             {
@@ -92,14 +140,12 @@ internal class NotifyPropertyChangeFromGenerator
                         propertyName
                     )
                 );
-                continue;
             }
-            validPropertyNames.Add(propertyName);
         }
 
-        if (propertySymbol.TryGetGetMethodContent(out var getMethod) is false)
+        if (property.TryGetGetMethodContent(out var getMethod) is false)
             return null;
-        var info = new NotifyPropertyChangeFromInfo(propertySymbol, getMethod, validPropertyNames);
+        var info = new NotifyPropertyChangeFromInfo(property, getMethod, validPropertyNames);
         if (
             attributeInfo.TryGetParam<NotifyPropertyChangeFromCacheMode>(
                 nameof(NotifyPropertyChangeFromAttribute.CacheMode),
@@ -110,27 +156,84 @@ internal class NotifyPropertyChangeFromGenerator
             info.CacheMode = cacheMode;
         }
 
-        foreach (var param in info.PropertyNames)
-        {
-            if (
-                _classInfo.PropertyChangedMemberByName.TryGetValue(param, out var changedMembers)
-                is false
-            )
-                changedMembers = _classInfo.PropertyChangedMemberByName[param] = [];
-            if (
-                _classInfo.PropertyChangingMemberByName.TryGetValue(param, out var changingMembers)
-                is false
-            )
-                changingMembers = _classInfo.PropertyChangingMemberByName[param] = [];
-            changingMembers.Add(info.ChangingMethodName + "();");
-            changedMembers.Add(info.ChangedMethodName + "();");
-        }
         return info;
     }
 
-    private void Generate(List<NotifyPropertyChangeFromInfo> infos)
+    private NotifyPropertyChangeFromInfo? AnalyzeNotifyPropertyChangeFor(
+        IPropertySymbol property,
+        NotifyPropertyChangeFromInfo? info
+    )
     {
-        foreach (var info in infos)
+        // 获取特性数据
+        if (
+            property.TryGetFirstAttribute(
+                MVVMGenerator.NotifyPropertyChangedForAttribute,
+                out var attributeData
+            )
+            is false
+        )
+            return info;
+        var attributeLocation = attributeData.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
+            attributeData.ApplicationSyntaxReference.Span
+        );
+
+        // 获取特性的参数
+        var attributeInfo = attributeData.GetInfo()!;
+        var propertyNames = attributeInfo.GetParams<string>("propertyNames");
+        if (attributeInfo.TryGetParam<string>("propertyName", out var propertyName))
+            propertyNames = [propertyName, .. propertyNames ?? Array.Empty<string>()];
+        if (propertyNames is null || propertyNames.Length == 0)
+            return info;
+
+        var validPropertyNames = new HashSet<string>();
+        foreach (var name in propertyNames)
+        {
+            if (
+                _classInfo.PropertyByName.TryGetValue(propertyName, out var targetProperty) is false
+            )
+            {
+                _classInfo.ProductionContext.ReportDiagnostic(
+                    Diagnostic.Create(
+                        MVVMDescriptors.NotifyPropertyChangeFromPropertyNotExist,
+                        attributeLocation,
+                        propertyName
+                    )
+                );
+                continue;
+            }
+            // 如果目标属性有Set方法则诊断
+            if (targetProperty.SetMethod is not null)
+            {
+                var diagnostic = Diagnostic.Create(
+                    MVVMDescriptors.NotifyPropertyChangeForTargetHasSetMethod,
+                    attributeLocation,
+                    name
+                );
+                _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
+                continue;
+            }
+            if (validPropertyNames.Add(propertyName) is false)
+            {
+                _classInfo.ProductionContext.ReportDiagnostic(
+                    Diagnostic.Create(
+                        MVVMDescriptors.NotifyPropertyChangeFromDuplicateProperty,
+                        attributeLocation,
+                        propertyName
+                    )
+                );
+            }
+        }
+        if (info is null)
+        {
+            info = new NotifyPropertyChangeFromInfo(property, "", []);
+        }
+        info.ForPropertyNames = validPropertyNames;
+        return info;
+    }
+
+    private void Generate(Dictionary<IPropertySymbol, NotifyPropertyChangeFromInfo> infoByProperty)
+    {
+        foreach (var info in infoByProperty.Values.Where(x => x.PropertyNames.Count > 0))
         {
             GenerateFromInfo(info);
         }

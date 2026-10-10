@@ -33,6 +33,7 @@ internal sealed class NotifyPropertyChangeFromInfo
     public string GetMethod { get; set; }
 
     public HashSet<string> PropertyNames { get; set; }
+    public HashSet<string> ForPropertyNames { get; set; }
 
     public string ChangingMethodName { get; set; }
     public string ChangedMethodName { get; set; }

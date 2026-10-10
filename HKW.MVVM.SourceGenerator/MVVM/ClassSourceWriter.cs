@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace HKW.MVVM.SourceGenerator;
 
-internal class ClassSourceWriter
+internal sealed class ClassSourceWriter
 {
     public static void Execute(ClassInfo classInfo)
     {

@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace HKW.MVVM.SourceGenerator;
 
-internal class RelayCommandInfo
+internal sealed class RelayCommandInfo
 {
     public RelayCommandInfo(
         string methodName,

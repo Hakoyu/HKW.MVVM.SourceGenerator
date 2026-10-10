@@ -1,6 +1,4 @@
-﻿// Source from https://github.com/SparkyTD/ReactiveCommand.SourceGenerator
-
-using System.CodeDom.Compiler;
+﻿using System.CodeDom.Compiler;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
@@ -12,18 +10,21 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace HKW.MVVM.SourceGenerator;
 
 [Generator]
-internal partial class MVVMGenerator : IIncrementalGenerator
+internal sealed class MVVMGenerator : IIncrementalGenerator
 {
     public const string ObservablePropertyAttribute =
         "global::CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute";
     public const string RelayCommandAttribute =
         "global::CommunityToolkit.Mvvm.Input.RelayCommandAttribute";
 
-    public const string NotifyPropertyChangeForAttribute =
-        "global::CommunityToolkit.Mvvm.ComponentModel.ObservableObjectAttribute";
+    public const string NotifyPropertyChangedForAttribute =
+        "global::CommunityToolkit.Mvvm.ComponentModel.NotifyPropertyChangedForAttribute";
+    public const string NotifyCanExecuteChangedForAttribute =
+        "global::CommunityToolkit.Mvvm.ComponentModel.NotifyCanExecuteChangedForAttribute";
     public const string ObservableObject =
         "global::CommunityToolkit.Mvvm.ComponentModel.ObservableObject";
-    public static string NotifyPropertyChangeFrom { get; } =
+
+    public static string NotifyPropertyChangeFromAttribute { get; } =
         typeof(NotifyPropertyChangeFromAttribute).GetGlobalFullName();
 
     public static string ObservableAsPropertyAttribute { get; } =
@@ -95,6 +96,7 @@ internal partial class MVVMGenerator : IIncrementalGenerator
             RelayCommandGenerator.Generate(classInfo);
             ObservablePropertyGenerator.Generate(classInfo);
             ObservableAsPropertyGenerator.Generate(classInfo);
+            NotifyCanExecuteChangedForGenerator.Generate(classInfo);
 
             ClassSourceWriter.Execute(classInfo);
         }

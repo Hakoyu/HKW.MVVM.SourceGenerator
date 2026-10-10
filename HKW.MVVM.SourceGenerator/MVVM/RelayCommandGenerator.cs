@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 
 namespace HKW.MVVM.SourceGenerator;
 
-internal class RelayCommandGenerator
+internal sealed class RelayCommandGenerator
 {
     public static void Generate(ClassInfo classInfo)
     {
@@ -76,12 +76,12 @@ internal class RelayCommandGenerator
         var propretyName = $"{commandInfo.MethodName}Command";
         var (commandType, commandCTOR) = GeneratorCommandType(commandInfo);
 
-        var field = new FieldGenerateInfo(commandType, fieldName)
+        var commandField = new FieldGenerateInfo(commandType, fieldName)
         {
             Default = "default!",
             Accessibility = Accessibility.Public,
         };
-        var property = new PropertyGenerateInfo(
+        var commandProperty = new PropertyGenerateInfo(
             commandType,
             propretyName,
             new(
@@ -93,17 +93,42 @@ internal class RelayCommandGenerator
                 $"/// <inheritdoc cref=\"{commandInfo.MethodName}({(commandInfo.ArgumentType is null ? string.Empty : commandInfo.ArgumentType?.GetFullName().ReplaceBraces())})\"/>",
             Accessibility = Accessibility.Public,
         };
-        _classInfo.HelperMembers.Add(field);
-        _classInfo.Members.Add(property);
+        _classInfo.HelperMembers.Add(commandField);
+        _classInfo.Members.Add(commandProperty);
         if (commandInfo.AttributeInfo.TryGetParam<string>("CanExecute", out var canExecuteProperty))
         {
-            if (_classInfo.PropertyByName.ContainsKey(canExecuteProperty) is false)
+            if (
+                _classInfo.PropertyByName.TryGetValue(canExecuteProperty, out var property) is false
+            )
             {
                 var diagnostic = Diagnostic.Create(
-                    MVVMDescriptors.RelayCommandCommandCanExecutePropertyNotExist,
+                    MVVMDescriptors.RelayCommandCanExecutePropertyNotExist,
                     commandInfo.AttributeInfo.Data.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
                         commandInfo.AttributeInfo.Data.ApplicationSyntaxReference.Span
+                    ),
+                    property.Name
+                );
+                _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
+                return;
+            }
+            // 如果指定的CanExecute属性不是可观察属性, 则诊断
+            if (
+                property
+                    .GetAttributes()
+                    .Any(x =>
+                        x.AttributeClass!.IsName(MVVMGenerator.ObservablePropertyAttribute)
+                        || x.AttributeClass!.IsName(MVVMGenerator.NotifyPropertyChangeFromAttribute)
+                        || x.AttributeClass!.IsName(MVVMGenerator.NotifyPropertyChangedForAttribute)
                     )
+                is false
+            )
+            {
+                var diagnostic = Diagnostic.Create(
+                    MVVMDescriptors.RelayCommandCanExecutePropertyNotObservable,
+                    commandInfo.AttributeInfo.Data.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
+                        commandInfo.AttributeInfo.Data.ApplicationSyntaxReference.Span
+                    ),
+                    property.Name
                 );
                 _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
                 return;

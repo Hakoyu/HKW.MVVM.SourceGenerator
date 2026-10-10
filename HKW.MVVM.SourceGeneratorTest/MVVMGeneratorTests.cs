@@ -90,6 +90,19 @@ public sealed class MVVMGeneratorTests
     }
 
     [TestMethod]
+    public void NotifyPropertyChangedFor_RaisesChangeForDerivedProperty()
+    {
+        var model = new TestModel();
+        var changes = new List<string?>();
+        model.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+
+        model.Name = "Alice";
+
+        CollectionAssert.Contains(changes, nameof(TestModel.IsNameLengthValid));
+        Assert.IsTrue(model.IsNameLengthValid);
+    }
+
+    [TestMethod]
     public void NotifyPropertyChangeFrom_WithCacheEnableUsesInitialAndUpdatedValue()
     {
         var model = new TestModel();
@@ -142,6 +155,7 @@ public partial class TestModel : ObservableObject
     public bool CancelNameChanging { get; set; } = false;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNameLengthValid))]
     public string Name { get; set; } = string.Empty;
 
     partial void OnNameChanging(string oldValue, string newValue, ref bool cancel)
@@ -151,6 +165,8 @@ public partial class TestModel : ObservableObject
 
     [NotifyPropertyChangeFrom(nameof(Name))]
     public bool IsNameValid => string.IsNullOrWhiteSpace(Name) is false;
+
+    public bool IsNameLengthValid => Name.Length >= 3;
 
     [NotifyPropertyChangeFrom(NotifyPropertyChangeFromCacheMode.Enable, nameof(Name))]
     public bool IsNameValidCacheEnable => string.IsNullOrWhiteSpace(Name) is false;

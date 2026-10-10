@@ -10,13 +10,13 @@
 /// ]]></code>
 /// 生成代码:
 /// <code><![CDATA[
-/// private void RaiseAndSetName(ref string backingField, string newValue)
+/// private void SetPropertyName(ref string backingField, string newValue)
 /// {
 ///     ...
-///     this.RaisePropertyChanging("IsValidName");
+///     OnPropertyChanging("IsValidName");
 ///     // backingField = newValue
 ///     ...
-///     this.RaisePropertyChanged("IsValidName");
+///     OnPropertyChanged("IsValidName");
 /// }
 /// ]]></code>
 /// </para>
@@ -36,18 +36,22 @@
 /// {
 ///     return string.IsNullOrWhiteSpace(Name) is false;
 /// }
-/// protected void RaiseAndSetIsValidName()
+/// protected void NotifyIsValidNameChanging()
 /// {
-///     this.RaiseAndSetIfChanged(ref _isValidName, GetIsValidName(), "IsValidName");
+///     OnPropertyChanging("IsValidName");
 /// }
-///
-/// private void RaiseAndSetName(ref string backingField, string newValue)
+/// protected void NotifyIsValidNameChanged()
+/// {
+///     _isValidName = GetIsValidName();
+///     OnPropertyChanged("IsValidName");
+/// }
+/// private void SetPropertyName(ref string backingField, string newValue)
 /// {
 ///     ...
-///     this.RaisePropertyChanging("IsValidName");
+///     NotifyIsValidNameChanging();
 ///     // backingField = newValue
 ///     ...
-///     this.RaisePropertyChanged("IsValidName");
+///     NotifyIsValidNameChanged();
 /// }
 /// ]]></code>
 /// </para>
@@ -59,21 +63,24 @@
 public sealed partial class NotifyPropertyChangeFromAttribute : Attribute
 {
     ///<inheritdoc/>
-    /// <param name="PropertyNames">属性名称</param>
-    public NotifyPropertyChangeFromAttribute(params string[] PropertyNames)
+    /// <param name="propertyName">属性名称</param>
+    /// <param name="propertyNames">属性名称</param>
+    public NotifyPropertyChangeFromAttribute(string propertyName, params string[] propertyNames)
     {
-        this.PropertyNames = PropertyNames;
+        this.PropertyNames = [propertyName, .. propertyNames];
     }
 
     ///<inheritdoc/>
-    /// <param name="PropertyNames">属性名称</param>
     /// <param name="CacheMode">启用缓存</param>
+    /// <param name="propertyName">属性名称</param>
+    /// <param name="propertyNames">属性名称</param>
     public NotifyPropertyChangeFromAttribute(
         NotifyPropertyChangeFromCacheMode CacheMode,
-        params string[] PropertyNames
+        string propertyName,
+        params string[] propertyNames
     )
     {
-        this.PropertyNames = PropertyNames;
+        this.PropertyNames = [propertyName, .. propertyNames];
         this.CacheMode = CacheMode;
     }
 

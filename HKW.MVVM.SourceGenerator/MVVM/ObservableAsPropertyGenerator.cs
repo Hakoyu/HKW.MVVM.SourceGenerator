@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace HKW.MVVM.SourceGenerator;
 
-internal class ObservableAsPropertyGenerator
+internal sealed class ObservableAsPropertyGenerator
 {
     public static void Generate(ClassInfo classInfo)
     {
@@ -28,13 +28,16 @@ internal class ObservableAsPropertyGenerator
 
     private void AnalyzeProperty(IPropertySymbol propertySymbol)
     {
-        if (propertySymbol.GetFirstAttribute(MVVMGenerator.ObservableAsPropertyAttribute) is null)
+        if (
+            propertySymbol.GetFirstAttribute(MVVMGenerator.ObservableAsPropertyAttribute)
+            is not AttributeData att
+        )
             return;
         // 如果有Set方法则异常
         if (propertySymbol.SetMethod is not null)
         {
             var diagnostic = Diagnostic.Create(
-                MVVMDescriptors.PropertyHasSetMethod,
+                MVVMDescriptors.AttributePropertyHasSetMethod,
                 propertySymbol.Locations[0],
                 nameof(MVVMGenerator.ObservableAsPropertyAttribute)
             );
@@ -45,7 +48,16 @@ internal class ObservableAsPropertyGenerator
             return;
         // 如果不是ToProperty方法则取消
         if (getMethod.Contains(".ToProperty(") is false)
+        {
+            var diagnostic = Diagnostic.Create(
+                MVVMDescriptors.ObservableAsPropertyStructuralError,
+                att.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
+                    att.ApplicationSyntaxReference.Span
+                )
+            );
+            _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
             return;
+        }
         if (getMethod.EndsWith(".Value;"))
         {
             getMethod = getMethod.Substring(0, getMethod.Length - 7) + ";";
@@ -56,6 +68,13 @@ internal class ObservableAsPropertyGenerator
         }
         else
         {
+            var diagnostic = Diagnostic.Create(
+                MVVMDescriptors.ObservableAsPropertyStructuralError,
+                att.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
+                    att.ApplicationSyntaxReference.Span
+                )
+            );
+            _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
             return;
         }
         getMethod = getMethod.Replace("this", "_source");

@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 
 namespace HKW.MVVM.SourceGenerator;
 
-internal class ObservablePropertyGenerator
+internal sealed class ObservablePropertyGenerator
 {
     public static void Generate(ClassInfo classInfo)
     {
@@ -35,7 +35,7 @@ internal class ObservablePropertyGenerator
         if (propertySymbol.SetMethod is null)
         {
             var diagnostic = Diagnostic.Create(
-                MVVMDescriptors.PropertyNotHaveSetMethod,
+                MVVMDescriptors.AttributePropertyNotHaveSetMethod,
                 propertySymbol.Locations[0],
                 nameof(MVVMGenerator.ObservablePropertyAttribute)
             );
@@ -71,14 +71,14 @@ internal class ObservablePropertyGenerator
         );
         contents.Add("    return;");
         contents.Add("var oldValue = backingField;");
-        contents.Add(
-            $"{ClassInfo.SourceName}.OnPropertyChanging({_classInfo.ChangeArgsCache.GetChangingArgs(property.Name)});"
-        );
         contents.Add($"var cancel = false;");
         contents.Add(
             $"{ClassInfo.SourceName}.On{property.Name}Changing(oldValue,newValue,ref cancel);"
         );
         contents.Add($"if(cancel) return;");
+        contents.Add(
+            $"{ClassInfo.SourceName}.OnPropertyChanging({_classInfo.ChangeArgsCache.GetChangingArgs(property.Name)});"
+        );
         if (
             _classInfo.PropertyChangingMemberByName.TryGetValue(
                 property.Name,
@@ -95,11 +95,10 @@ internal class ObservablePropertyGenerator
         contents.Add("backingField = newValue;");
         contents.Add("");
 
+        contents.Add($"{ClassInfo.SourceName}.On{property.Name}Changed(oldValue,newValue);");
         contents.Add(
             $"{ClassInfo.SourceName}.OnPropertyChanged({_classInfo.ChangeArgsCache.GetChangedArgs(property.Name)});"
         );
-        contents.Add($"{ClassInfo.SourceName}.On{property.Name}Changed(oldValue,newValue);");
-
         if (
             _classInfo.PropertyChangedMemberByName.TryGetValue(
                 property.Name,
