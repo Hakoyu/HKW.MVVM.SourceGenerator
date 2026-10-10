@@ -92,8 +92,8 @@ internal partial class MVVMGenerator : IIncrementalGenerator
             classInfo.ChangeArgsCache = changeArgsCache;
 
             NotifyPropertyChangeFromGenerator.Generate(classInfo);
-            ObservablePropertyGenerator.Generate(classInfo);
             RelayCommandGenerator.Generate(classInfo);
+            ObservablePropertyGenerator.Generate(classInfo);
             ObservableAsPropertyGenerator.Generate(classInfo);
 
             ClassSourceWriter.Execute(classInfo);

@@ -9,6 +9,9 @@ MVVM0001 | MVVMGenerator | Error | Descriptors
 MVVM0002 | MVVMGenerator | Error | Descriptors
 MVVM0003 | MVVMGenerator | Error | Descriptors
 MVVM0004 | MVVMGenerator | Error | Descriptors
+MVVM0005 | MVVMGenerator | Error | Descriptors
+MVVM0006 | MVVMGenerator | Error | Descriptors
+MVVM0007 | MVVMGenerator | Error | Descriptors
 DI001 | DIGenerator | Error | Descriptors
 DI002 | DIGenerator | Error | Descriptors
 DI003 | DIGenerator | Error | Descriptors

@@ -13,16 +13,16 @@ internal sealed class NotifyPropertyChangeFromInfo
     /// </summary>
     /// <param name="property">属性</param>
     /// <param name="getMethod">方法</param>
-    /// <param name="params">参数</param>
+    /// <param name="propertyNames">属性名</param>
     public NotifyPropertyChangeFromInfo(
         IPropertySymbol property,
         string getMethod,
-        string[] @params
+        HashSet<string> propertyNames
     )
     {
         Property = property;
         GetMethod = getMethod;
-        Params = @params;
+        PropertyNames = propertyNames;
         ChangingMethodName = $"Notify{property.Name}Changing";
         ChangedMethodName = $"Notify{property.Name}Changed";
     }
@@ -32,7 +32,7 @@ internal sealed class NotifyPropertyChangeFromInfo
     public NotifyPropertyChangeFromCacheMode CacheMode { get; set; }
     public string GetMethod { get; set; }
 
-    public string[] Params { get; set; }
+    public HashSet<string> PropertyNames { get; set; }
 
     public string ChangingMethodName { get; set; }
     public string ChangedMethodName { get; set; }

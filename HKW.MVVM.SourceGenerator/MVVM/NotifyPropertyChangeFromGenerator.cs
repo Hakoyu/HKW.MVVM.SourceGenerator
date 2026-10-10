@@ -22,10 +22,9 @@ internal class NotifyPropertyChangeFromGenerator
     private void Process()
     {
         var infos = new List<NotifyPropertyChangeFromInfo>();
-        for (var i = 0; i < _classInfo.Propertys.Count; i++)
+        foreach (var property in _classInfo.PropertyByName.Values)
         {
-            var propertySymbol = _classInfo.Propertys[i];
-            var info = AnalyzeProperty(propertySymbol);
+            var info = AnalyzeProperty(property);
             if (info is not null)
                 infos.Add(info);
         }
@@ -67,13 +66,40 @@ internal class NotifyPropertyChangeFromGenerator
         )
             return null;
 
+        var attributeLocation = attributeData.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
+            attributeData.ApplicationSyntaxReference.Span
+        );
+        var validPropertyNames = new HashSet<string>();
+        foreach (var propertyName in propertyNames)
+        {
+            if (_classInfo.PropertyByName.ContainsKey(propertyName) is false)
+            {
+                _classInfo.ProductionContext.ReportDiagnostic(
+                    Diagnostic.Create(
+                        MVVMDescriptors.NotifyPropertyChangeFromPropertyNotExist,
+                        attributeLocation,
+                        propertyName
+                    )
+                );
+                continue;
+            }
+            if (validPropertyNames.Add(propertyName) is false)
+            {
+                _classInfo.ProductionContext.ReportDiagnostic(
+                    Diagnostic.Create(
+                        MVVMDescriptors.NotifyPropertyChangeFromDuplicateProperty,
+                        attributeLocation,
+                        propertyName
+                    )
+                );
+                continue;
+            }
+            validPropertyNames.Add(propertyName);
+        }
+
         if (propertySymbol.TryGetGetMethodContent(out var getMethod) is false)
             return null;
-        var info = new NotifyPropertyChangeFromInfo(
-            propertySymbol,
-            getMethod,
-            propertyNames.Distinct().ToArray()
-        );
+        var info = new NotifyPropertyChangeFromInfo(propertySymbol, getMethod, validPropertyNames);
         if (
             attributeInfo.TryGetParam<NotifyPropertyChangeFromCacheMode>(
                 nameof(NotifyPropertyChangeFromAttribute.CacheMode),
@@ -84,7 +110,7 @@ internal class NotifyPropertyChangeFromGenerator
             info.CacheMode = cacheMode;
         }
 
-        foreach (var param in info.Params)
+        foreach (var param in info.PropertyNames)
         {
             if (
                 _classInfo.PropertyChangedMemberByName.TryGetValue(param, out var changedMembers)

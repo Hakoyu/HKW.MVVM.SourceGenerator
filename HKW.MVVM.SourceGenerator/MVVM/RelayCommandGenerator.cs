@@ -95,6 +95,32 @@ internal class RelayCommandGenerator
         };
         _classInfo.HelperMembers.Add(field);
         _classInfo.Members.Add(property);
+        if (commandInfo.AttributeInfo.TryGetParam<string>("CanExecute", out var canExecuteProperty))
+        {
+            if (_classInfo.PropertyByName.ContainsKey(canExecuteProperty) is false)
+            {
+                var diagnostic = Diagnostic.Create(
+                    MVVMDescriptors.RelayCommandCommandCanExecutePropertyNotExist,
+                    commandInfo.AttributeInfo.Data.ApplicationSyntaxReference?.SyntaxTree.GetLocation(
+                        commandInfo.AttributeInfo.Data.ApplicationSyntaxReference.Span
+                    )
+                );
+                _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
+                return;
+            }
+            if (
+                _classInfo.PropertyChangedMemberByName.TryGetValue(
+                    canExecuteProperty,
+                    out var datas
+                )
+                is false
+            )
+            {
+                datas = _classInfo.PropertyChangedMemberByName[canExecuteProperty] = new();
+            }
+            // 为注册的属性添加CanExecute通知方法
+            datas.Add($"{fieldName}.NotifyCanExecuteChanged();");
+        }
     }
 
     private static (string commandType, string commandCTOR) GeneratorCommandType(
@@ -130,15 +156,10 @@ internal class RelayCommandGenerator
             );
         }
 
-        // 如果有CanExecute则添加canExecute参数
-        if (
-            commandInfo.AttributeInfo.TryGetParam<string>(
-                "CanExecute",
-                out var canExecutePropertyName
-            )
-        )
+        // 如果有CanExecute则添加
+        if (commandInfo.AttributeInfo.TryGetParam<string>("CanExecute", out var canExecuteProperty))
         {
-            sb.Append($",() => {canExecutePropertyName}");
+            sb.Append($",() => {canExecuteProperty}");
         }
         sb.Append("));");
         return (commandTypeName, sb.ToString());

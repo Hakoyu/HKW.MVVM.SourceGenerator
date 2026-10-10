@@ -393,6 +393,8 @@ public string UpperName => UserViewModelObservableHelper._upperNameOAPH.Value;
 | `HKWMVVM0002` | Error | `[ObservableProperty]` 标注的属性没有 setter |
 | `HKWMVVM0003` | Error | `[NotifyPropertyChangeFrom]` 或 `[ObservableAsProperty]` 标注的属性带有 setter |
 | `HKWMVVM0004` | Error | `[RelayCommand]` 标注的方法参数个数超过 1 个 |
+| `MVVM0006` | Error | `[NotifyPropertyChangeFrom]` 中包含重复的属性名 |
+| `MVVM0007` | Error | `[NotifyPropertyChangeFrom]` 中指定的属性不存在 |
 
 ## 依赖注入生成
 

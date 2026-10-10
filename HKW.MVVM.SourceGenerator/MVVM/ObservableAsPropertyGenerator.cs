@@ -20,9 +20,8 @@ internal class ObservableAsPropertyGenerator
 
     private void Execute()
     {
-        for (var i = 0; i < _classInfo.Propertys.Count; i++)
+        foreach (var property in _classInfo.PropertyByName.Values)
         {
-            var property = _classInfo.Propertys[i];
             AnalyzeProperty(property);
         }
     }

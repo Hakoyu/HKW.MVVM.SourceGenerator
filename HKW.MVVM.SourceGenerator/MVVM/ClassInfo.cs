@@ -39,7 +39,7 @@ internal sealed class ClassInfo
             }
             else if (member is IPropertySymbol propertySymbol)
             {
-                Propertys.Add(propertySymbol);
+                PropertyByName.Add(propertySymbol.Name, propertySymbol);
             }
         }
 
@@ -73,7 +73,7 @@ internal sealed class ClassInfo
     public string FullName => $"{Namespace}.{Name}";
     public string FullTypeName => $"{Namespace}.{Name}{DeclarationSyntax.TypeParameterList}";
     public List<IMethodSymbol> Methods { get; } = [];
-    public List<IPropertySymbol> Propertys { get; } = [];
+    public Dictionary<string, IPropertySymbol> PropertyByName { get; } = [];
     public SyntaxList<UsingDirectiveSyntax> Usings { get; }
     public ClassDeclarationSyntax DeclarationSyntax { get; }
     public INamedTypeSymbol ClassSymbol { get; }
