@@ -112,32 +112,34 @@ internal sealed class NotifyPropertyChangeFromGenerator
         // 获取特性的参数
         var attributeInfo = attributeData.GetInfo()!;
         var propertyNames = attributeInfo.GetParams<string>("propertyNames");
-        if (attributeInfo.TryGetParam<string>("propertyName", out var propertyName))
-            propertyNames = [propertyName, .. propertyNames ?? Array.Empty<string>()];
-        if (propertyNames is null || propertyNames.Length == 0)
-            return null;
+        {
+            if (attributeInfo.TryGetParam<string>("propertyName", out var propertyName))
+                propertyNames = [propertyName, .. propertyNames ?? Array.Empty<string>()];
+            if (propertyNames is null || propertyNames.Length == 0)
+                return null;
+        }
 
         var validPropertyNames = new HashSet<string>();
         foreach (var name in propertyNames)
         {
-            if (_classInfo.PropertyByName.ContainsKey(propertyName) is false)
+            if (_classInfo.PropertyByName.ContainsKey(name) is false)
             {
                 _classInfo.ProductionContext.ReportDiagnostic(
                     Diagnostic.Create(
                         MVVMDescriptors.NotifyPropertyChangeFromPropertyNotExist,
                         attributeLocation,
-                        propertyName
+                        name
                     )
                 );
                 continue;
             }
-            if (validPropertyNames.Add(propertyName) is false)
+            if (validPropertyNames.Add(name) is false)
             {
                 _classInfo.ProductionContext.ReportDiagnostic(
                     Diagnostic.Create(
                         MVVMDescriptors.NotifyPropertyChangeFromDuplicateProperty,
                         attributeLocation,
-                        propertyName
+                        name
                     )
                 );
             }
@@ -180,23 +182,23 @@ internal sealed class NotifyPropertyChangeFromGenerator
         // 获取特性的参数
         var attributeInfo = attributeData.GetInfo()!;
         var propertyNames = attributeInfo.GetParams<string>("propertyNames");
-        if (attributeInfo.TryGetParam<string>("propertyName", out var propertyName))
-            propertyNames = [propertyName, .. propertyNames ?? Array.Empty<string>()];
-        if (propertyNames is null || propertyNames.Length == 0)
-            return info;
+        {
+            if (attributeInfo.TryGetParam<string>("propertyName", out var propertyName))
+                propertyNames = [propertyName, .. propertyNames ?? Array.Empty<string>()];
+            if (propertyNames is null || propertyNames.Length == 0)
+                return info;
+        }
 
         var validPropertyNames = new HashSet<string>();
         foreach (var name in propertyNames)
         {
-            if (
-                _classInfo.PropertyByName.TryGetValue(propertyName, out var targetProperty) is false
-            )
+            if (_classInfo.PropertyByName.TryGetValue(name, out var targetProperty) is false)
             {
                 _classInfo.ProductionContext.ReportDiagnostic(
                     Diagnostic.Create(
                         MVVMDescriptors.NotifyPropertyChangeFromPropertyNotExist,
                         attributeLocation,
-                        propertyName
+                        name
                     )
                 );
                 continue;
@@ -212,13 +214,13 @@ internal sealed class NotifyPropertyChangeFromGenerator
                 _classInfo.ProductionContext.ReportDiagnostic(diagnostic);
                 continue;
             }
-            if (validPropertyNames.Add(propertyName) is false)
+            if (validPropertyNames.Add(name) is false)
             {
                 _classInfo.ProductionContext.ReportDiagnostic(
                     Diagnostic.Create(
                         MVVMDescriptors.NotifyPropertyChangeFromDuplicateProperty,
                         attributeLocation,
-                        propertyName
+                        name
                     )
                 );
             }

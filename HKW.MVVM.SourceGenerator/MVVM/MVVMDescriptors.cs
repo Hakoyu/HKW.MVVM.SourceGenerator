@@ -54,7 +54,7 @@ internal static class MVVMDescriptors
         title: "Duplicate notify property change source property",
         messageFormat: "Notify property change source property '{0}' is duplicated",
         category: Category,
-        DiagnosticSeverity.Error,
+        DiagnosticSeverity.Warning,
         isEnabledByDefault: true
     );
     public static readonly DiagnosticDescriptor NotifyPropertyChangeFromPropertyNotExist = new(

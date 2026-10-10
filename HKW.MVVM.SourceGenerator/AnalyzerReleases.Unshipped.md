@@ -10,7 +10,7 @@ MVVM0002 | MVVMGenerator | Error | Descriptors
 MVVM0003 | MVVMGenerator | Error | Descriptors
 MVVM0004 | MVVMGenerator | Error | Descriptors
 MVVM0005 | MVVMGenerator | Error | Descriptors
-MVVM0006 | MVVMGenerator | Error | Descriptors
+MVVM0006 | MVVMGenerator | Warning | Descriptors
 MVVM0007 | MVVMGenerator | Error | Descriptors
 MVVM0008 | MVVMGenerator | Error | Descriptors
 MVVM0009 | MVVMGenerator | Error | Descriptors
