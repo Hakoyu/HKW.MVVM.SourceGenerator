@@ -278,15 +278,14 @@ internal sealed class DIGenerator : IIncrementalGenerator
         {
             if (uniqueRegistrations.Any(existing => IsSameRegistration(existing, registration)))
             {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
-                        DIDescriptors.DuplicateRegistration,
-                        registration.Location,
-                        registration.ServiceType.GetName(),
-                        registration.ImplementationType.GetName(),
-                        registration.MethodName
-                    )
+                var diagnostic = Diagnostic.Create(
+                    DIDescriptors.DuplicateRegistration,
+                    registration.Location,
+                    registration.ServiceType.GetName(),
+                    registration.ImplementationType.GetName(),
+                    registration.MethodName
                 );
+                context.ReportDiagnostic(diagnostic);
                 continue;
             }
             uniqueRegistrations.Add(registration);

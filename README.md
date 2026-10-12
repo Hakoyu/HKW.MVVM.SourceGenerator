@@ -24,7 +24,7 @@ MVVM：
 
 ## 安装
 
-Roslyn 源生成器面向 `.NET Standard 2.0`，可由 Visual Studio 的编译器宿主加载和调试。DI 轻量 Provider 会作为源码生成到使用方程序集，不会为生成器额外引入 `Microsoft.Bcl.AsyncInterfaces`。在需要使用生成器的应用或类库项目中添加以下包引用。版本号请根据实际发布版本调整：
+Roslyn 源生成器面向 `.NET Standard 2.0`，可由 Visual Studio 的编译器宿主加载和调试。DI 轻量 Provider 会作为源码生成到使用方程序集。在需要使用生成器的应用或类库项目中添加以下包引用。版本号请根据实际发布版本调整：
 
 ```xml
 <ItemGroup>
@@ -385,17 +385,6 @@ Fody 会将原属性 getter 重写为读取 helper 的 `Value`：
 public string UpperName => UserViewModelObservableHelper._upperNameOAPH.Value;
 ```
 
-### 诊断
-
-| ID | 级别 | 说明 |
-|---|---|---|
-| `HKWMVVM0001` | Error | 类型继承了 `ObservableObject`，但没有声明为 `partial` |
-| `HKWMVVM0002` | Error | `[ObservableProperty]` 标注的属性没有 setter |
-| `HKWMVVM0003` | Error | `[NotifyPropertyChangeFrom]` 或 `[ObservableAsProperty]` 标注的属性带有 setter |
-| `HKWMVVM0004` | Error | `[RelayCommand]` 标注的方法参数个数超过 1 个 |
-| `MVVM0006` | Error | `[NotifyPropertyChangeFrom]` 中包含重复的属性名 |
-| `MVVM0007` | Error | `[NotifyPropertyChangeFrom]` 中指定的属性不存在 |
-
 ## 依赖注入生成
 
 `DIGenerator` 是独立于 MVVM 部分的源生成器，基于标记 API 收集当前程序集内的服务注册声明，并为每个直接继承 `DIConfigurationBase` 的类型生成显式的 `Microsoft.Extensions.DependencyInjection.IServiceCollection` 注册代码。整个过程只产生普通 C# 代码，不依赖反射，也不经过 Fody。
@@ -424,8 +413,6 @@ public partial class AppServices : DIConfigurationBase
 - 非抽象的 `partial` 类；
 - 非泛型；
 - 具有 `public` 或 `internal` 无参数构造函数。
-
-不满足以上任意一点会触发 `DI006`。
 
 生成器会重写注册方法：
 
@@ -497,7 +484,6 @@ private void RegisterMVVM<TViewModel, TView>()
     where TView : Control, new()
 {
     ViewLocator.Register<TViewModel, TView>();
-    Register<TViewModel>(); // 不会被重复收集
 }
 ```
 
@@ -505,8 +491,8 @@ private void RegisterMVVM<TViewModel, TView>()
 
 ```csharp
 [DICustomServiceRegistrar(
-    nameof(TViewModel), DIServiceRegistration.Scoped,
-    nameof(TCache), DIServiceRegistration.LazySingleton
+    [nameof(TViewModel), nameof(TCache)],
+    [DIServiceRegistration.Scoped, DIServiceRegistration.LazySingleton]
 )]
 private void RegisterMVVM<TViewModel, TCache>()
     where TViewModel : class
@@ -539,8 +525,8 @@ private void RegisterMVVM<TViewModel, TCache>()
 ### 构造函数选择
 
 - 实现类型只有一个实例构造函数时，直接使用它。
-- 有多个实例构造函数时，必须且只能有一个标注 `[DIConstructor]`，否则报 `DI001`。
-- 选中的构造函数必须是 `public`、`internal` 或 `protected internal`，否则报 `DI003`。
+- 有多个实例构造函数时，必须且只能有一个标注 `[DIConstructor]`。
+- 选中的构造函数必须是 `public`、`internal` 或 `protected internal`。
 
 ```csharp
 public sealed class Greeter
@@ -568,7 +554,7 @@ public sealed class Greeter
 ```
 
 - 只扫描实现类型及其在**当前程序集**内声明的基类；引用其他程序集的基类会被忽略。
-- 属性必须具有 `public`、`internal` 或 `protected internal` 的 setter（含 `init`），否则报 `DI002`，且该服务的整个注册都会被跳过。
+- 属性必须具有 `public`、`internal` 或 `protected internal` 的 setter（含 `init`），且该服务的整个注册都会被跳过。
 - 不支持静态属性和索引器。
 
 ### 参数解析
@@ -582,24 +568,6 @@ public sealed class Greeter
 | `IEnumerable<T>` | `serviceProvider.GetServices<T>()` |
 
 `Lazy<T>` 和 `IEnumerable<T>` 之外的其他集合类型（如 `List<T>`、数组）按普通服务解析，不做特殊处理。
-
-### 诊断
-
-| ID | 级别 | 说明 |
-|---|---|---|
-| `DI001` | Error | 实现类型有多个构造函数，但没有一个标注 `[DIConstructor]` |
-| `DI002` | Error | 标注 `[DIProperty]` 的属性缺少可访问的 setter |
-| `DI003` | Error | 选中的构造函数可访问性低于 `internal` |
-| `DI004` | Error | 实现类型不是非抽象的封闭类 |
-| `DI005` | Error | 实现类型不能转换为服务类型 |
-| `DI006` | Error | `DIConfigurationBase` 派生类型不符合配置类约束 |
-| `DI007` | Error | `[DICustomServiceRegistrar]` 指定的泛型名称不是目标方法的类型参数 |
-| `DI008` | Error | `[DICustomServiceRegistrar]` 的泛型名称与注册方式数量不一致 |
-| `DI009` | Warning | 同一配置中服务类型、实现类型和注册方式完全相同的注册出现多次；仅生成首个注册 |
-| `DI010` | Error | 静态已知的依赖图包含循环依赖 |
-| `DI011` | Error | Singleton 通过静态已知路径捕获 Scoped 服务 |
-
-`DI010`–`DI011` 同时分析源生成注册和可识别的标准手动工厂注册。依赖不透明的工厂保守降级到运行时验证。
 
 ## 使用限制
 
