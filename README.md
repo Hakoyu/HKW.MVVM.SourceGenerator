@@ -592,9 +592,18 @@ MVVM：
 ## 开发与验证
 
 - 仓库包含源生成器、Fody weaver 和测试项目。
-- 使用 `dotnet build HKW.MVVM.SourceGenerator` 即可编译完整的程序集。
-- 因 Fody 的特殊性，MVVM 部分的单元测试仅能在 Visual Studio 中进行编译测试，无法使用 `dotnet build` 命令编译测试。
-- 依赖注入部分不依赖 Fody，可以通过 `dotnet build -p:DisableFody=true` 和 `dotnet test -p:DisableFody=true` 单独编译和运行 DI 相关测试。
+- 使用 `dotnet build HKW.MVVM.SourceGenerator` 即可编译源生成器和 Fody weaver。
+- 完整解决方案支持 `dotnet build`，无需打开 Visual Studio 或禁用 Fody。在仓库根目录执行：
+
+  ```powershell
+  dotnet build .\HKW.MVVM.SourceGenerator.sln
+  dotnet test .\HKW.MVVM.SourceGenerator.sln --no-build --filter "FullyQualifiedName~MVVMGeneratorTests"
+  ```
+
+### `dotnet build` 的 Fody 编译问题
+
+- 若出现 `Failed to resolve System.Diagnostics.DebuggerBrowsableState`，原因是旧版 weaver 通过 `typeof(...)` 导入了构建宿主的运行时类型，而不是目标框架的类型，导致 Fody 织入时无法解析引用。这不是 Fody 不支持 `dotnet build`。
+- 当前代码已修复：使用 Fody 的 `FindTypeDefinition` 从目标框架解析 `GeneratedCodeAttribute` 和 `DebuggerBrowsableAttribute`，再导入构造函数；枚举参数使用该构造函数的参数类型，不再通过宿主反射导入。
 
 ## 许可证
 

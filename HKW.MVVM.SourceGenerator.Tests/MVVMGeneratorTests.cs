@@ -1,13 +1,38 @@
+using System.CodeDom.Compiler;
+using System.Diagnostics;
+using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using HKW.MVVM;
 using HKW.MVVM.SourceGenerator;
 
-namespace HKW.MVVM.SourceGeneratorTest;
+namespace HKW.MVVM.SourceGenerator.Tests;
 
 [TestClass]
 public sealed class MVVMGeneratorTests
 {
+    [TestMethod]
+    public void ObservableProperty_GeneratedFieldAttributesResolveAtRuntime()
+    {
+        var field = typeof(TestModel).GetField(
+            "$Name",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        Assert.IsNotNull(field);
+
+        var generatedCode = field.GetCustomAttribute<GeneratedCodeAttribute>();
+        Assert.IsNotNull(generatedCode);
+        Assert.AreEqual("HKW.MVVM.SourceGenerator", generatedCode.Tool);
+        Assert.AreEqual(
+            typeof(NotifyPropertyChangeFromAttribute).Assembly.GetName().Version?.ToString(),
+            generatedCode.Version
+        );
+
+        var debuggerBrowsable = field.GetCustomAttribute<DebuggerBrowsableAttribute>();
+        Assert.IsNotNull(debuggerBrowsable);
+        Assert.AreEqual(DebuggerBrowsableState.Never, debuggerBrowsable.State);
+    }
+
     [TestMethod]
     public void ObservableProperty_UpdatesValueAndRaisesPropertyChanged()
     {

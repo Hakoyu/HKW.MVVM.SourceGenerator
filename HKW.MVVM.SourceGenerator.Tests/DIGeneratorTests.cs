@@ -1,7 +1,7 @@
 using HKW.MVVM.SourceGenerator;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace HKW.MVVM.SourceGeneratorTest;
+namespace HKW.MVVM.SourceGenerator.Tests;
 
 #pragma warning disable S2094
 [TestClass]
@@ -595,7 +595,9 @@ public sealed partial class DuplicateRegistrationServices : DIConfigurationBase
     protected override void Configure(IServiceCollection services)
     {
         Register<DuplicateDependency>();
+#pragma warning disable DI009 // Dependency injection registration is duplicated
         Register<DuplicateDependency>();
+#pragma warning restore DI009 // Dependency injection registration is duplicated
     }
 }
 

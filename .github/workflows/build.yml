@@ -1,8 +1,12 @@
 name: build-and-publish
 on:
   push:
+    branches:
+      - main
+      - master
     tags:
       - 'v*'   # 例如推送 v1.0.0 时触发
+  pull_request:
 
 jobs:
   publish-nuget:
@@ -23,10 +27,18 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --configuration Release ./HKW.MVVM.SourceGenerator/HKW.MVVM.SourceGenerator.csproj
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build
+      
+      - name: Pack library
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: dotnet pack --configuration Release --no-build --output ./artifacts
 
       # 登录并获取临时 API Key
       - name: NuGet login (OIDC → temp API key)
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: NuGet/login@v1
         id: login
         with:
@@ -36,4 +48,19 @@ jobs:
 
       # 推送到 NuGet.org
       - name: NuGet push
-        run: dotnet nuget push "./HKW.MVVM.SourceGenerator/bin/Release/*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source "https://api.nuget.org/v3/index.json" --skip-duplicate
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          $packages = @(Get-ChildItem -Path .\artifacts -Filter *.nupkg -File)
+          if ($packages.Count -eq 0) {
+            throw "No NuGet packages found."
+          }
+
+          foreach ($package in $packages) {
+            dotnet nuget push $package.FullName --api-key "$env:NUGET_API_KEY" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }

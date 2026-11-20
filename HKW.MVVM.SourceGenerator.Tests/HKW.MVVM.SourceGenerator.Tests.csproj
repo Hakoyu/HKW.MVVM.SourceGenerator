@@ -6,11 +6,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-    <StartupObject>HKW.MVVM.SourceGeneratorTest.Program</StartupObject>
+    <StartupObject>HKW.MVVM.SourceGenerator.Tests.Program</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MSTest" Version="4.5.1" />
+    <PackageReference Include="MSTest" Version="4.5.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="HKW.MVVM" Version="0.1.4" />
+    <PackageReference Include="HKW.MVVM" Version="0.2.1" />
     <PackageReference Include="HKW.SourceGeneratorUtils" Version="0.2.3" GeneratePathProperty="true" />
     <Analyzer Include="$(PkgHKW_SourceGeneratorUtils)\lib\netstandard2.0\*.dll" />
     <ProjectReference Include="..\HKW.MVVM.SourceGenerator\HKW.MVVM.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
@@ -33,8 +33,8 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0" />
   </ItemGroup>
   <Target Name="DisableMvvmToolkitSourceGenerators" BeforeTargets="CoreCompile">
     <ItemGroup>

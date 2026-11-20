@@ -24,7 +24,7 @@ public class ModuleWeaver : BaseModuleWeaver
         //Debugger.Launch();
         Logger = new ModuleWeaverLogger(this, false);
 
-        if (WeaverHelper.Initialize(ModuleDefinition, Logger) is false)
+        if (WeaverHelper.Initialize(ModuleDefinition, Logger, FindTypeDefinition) is false)
             return;
 
         // 筛选所有实现了IReactiveObject接口的类
@@ -52,6 +52,8 @@ public class ModuleWeaver : BaseModuleWeaver
             "netstandard",
             "System",
             "System.Runtime",
+            "System.Diagnostics.Debug",
+            "System.Diagnostics.Tools",
             "CommunityToolkit.Mvvm",
             "HKW.MVVM",
             "HKW.MVVM.SourceGenerator",

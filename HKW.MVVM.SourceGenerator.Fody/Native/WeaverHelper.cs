@@ -1,5 +1,4 @@
-﻿using System.CodeDom.Compiler;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
 
@@ -7,7 +6,11 @@ namespace HKW.MVVM.SourceGenerator.Fody;
 
 internal static class WeaverHelper
 {
-    public static bool Initialize(ModuleDefinition moduleDefinition, ModuleWeaverLogger logger)
+    public static bool Initialize(
+        ModuleDefinition moduleDefinition,
+        ModuleWeaverLogger logger,
+        Func<string, TypeDefinition> findTypeDefinition
+    )
     {
         ModuleDefinition = moduleDefinition;
         Logger = logger;
@@ -88,17 +91,33 @@ internal static class WeaverHelper
             "T"
         );
 
-        InitializeGeneratedCodeAttribute(ModuleDefinition);
+        InitializeGeneratedCodeAttribute(ModuleDefinition, findTypeDefinition);
         return true;
     }
 
-    public static void InitializeGeneratedCodeAttribute(ModuleDefinition moduleDefinition)
+    private static void InitializeGeneratedCodeAttribute(
+        ModuleDefinition moduleDefinition,
+        Func<string, TypeDefinition> findTypeDefinition
+    )
     {
+        // Resolve against the target framework, not the build host's runtime assemblies.
+        var generatedCodeType = findTypeDefinition("System.CodeDom.Compiler.GeneratedCodeAttribute");
+        var debuggerBrowsableType = findTypeDefinition("System.Diagnostics.DebuggerBrowsableAttribute");
         var generatedCodeConstructor = moduleDefinition.ImportReference(
-            typeof(GeneratedCodeAttribute).GetConstructor([typeof(string), typeof(string)])!
+            generatedCodeType.Methods.Single(x =>
+                x.IsConstructor
+                && x.IsStatic is false
+                && x.Parameters.Count == 2
+                && x.Parameters.All(p => p.ParameterType.FullName == "System.String")
+            )
         );
         var debuggerBrowsableConstructor = moduleDefinition.ImportReference(
-            typeof(DebuggerBrowsableAttribute).GetConstructor([typeof(DebuggerBrowsableState)])!
+            debuggerBrowsableType.Methods.Single(x =>
+                x.IsConstructor
+                && x.IsStatic is false
+                && x.Parameters.Count == 1
+                && x.Parameters[0].ParameterType.FullName == "System.Diagnostics.DebuggerBrowsableState"
+            )
         );
 
         GeneratedCodeAttribute = new CustomAttribute(generatedCodeConstructor);
@@ -118,7 +137,7 @@ internal static class WeaverHelper
         DebuggerBrowsableAttribute = new CustomAttribute(debuggerBrowsableConstructor);
         DebuggerBrowsableAttribute.ConstructorArguments.Add(
             new CustomAttributeArgument(
-                moduleDefinition.ImportReference(typeof(DebuggerBrowsableState)),
+                debuggerBrowsableConstructor.Parameters[0].ParameterType,
                 (int)DebuggerBrowsableState.Never
             )
         );

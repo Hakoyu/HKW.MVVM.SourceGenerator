@@ -32,8 +32,8 @@ internal sealed class NotifyPropertyChangeFromInfo
     public NotifyPropertyChangeFromCacheMode CacheMode { get; set; }
     public string GetMethod { get; set; }
 
-    public HashSet<string> PropertyNames { get; set; }
-    public HashSet<string> ForPropertyNames { get; set; }
+    public HashSet<string> PropertyNames { get; set; } = null!;
+    public HashSet<string> ForPropertyNames { get; set; } = null!;
 
     public string ChangingMethodName { get; set; }
     public string ChangedMethodName { get; set; }

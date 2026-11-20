@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <Version>0.1.10</Version>
+    <Version>0.2.0</Version>
     <Company>HKW</Company>
     <Authors>HKW</Authors>
     <PackageDescription>An source generator MVVM library, based on CommunityToolkit.Mvvm, using SourceGenerator and Fody for mixed source code generation.</PackageDescription>
@@ -25,8 +25,7 @@
     <Deterministic>true</Deterministic>
     <PathMap Condition="'$(SolutionDir)' != ''">$(SolutionDir)=/_/</PathMap>
     <PathMap Condition="'$(SolutionDir)' == ''"
-      >$(MSBuildProjectDirectory)=/_/$(AssemblyName)/</PathMap
-    >
+      >$(MSBuildProjectDirectory)=/_/$(AssemblyName)/</PathMap>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -50,10 +49,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
+    <PackageReference
+      Include="Microsoft.CodeAnalysis.CSharp"
+      Version="5.12.0"
+      PrivateAssets="all"
+    />
     <PackageReference
       Include="Microsoft.CodeAnalysis.Analyzers"
-      Version="5.9.0"
+      Version="5.12.0"
       PrivateAssets="all"
     />
   </ItemGroup>
@@ -61,7 +64,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" PrivateAssets="all" />
     <PackageReference
       Include="Microsoft.Extensions.DependencyInjection.Abstractions"
-      Version="10.0.12"
+      Version="11.0.0"
     />
   </ItemGroup>
   <Target Name="DisableMvvmToolkitSourceGenerators" BeforeTargets="CoreCompile">
