@@ -43,10 +43,9 @@ internal class ReactivePropertyWeaver
             return;
         }
 
-        var setPropertyMethodDefinition =
-            _classInfo
-                .HelperType.Resolve()
-                .Methods.SingleOrDefault(x => x.Name == $"SetProperty{property.Name}")
+        var setPropertyMethodDefinition = _classInfo
+            .HelperType.Resolve()
+            .Methods.SingleOrDefault(x => x.Name == $"SetProperty{property.Name}")
             ?? throw new WeaverException(
                 $"{_classInfo.HelperType.FullName} not exists method SetProperty{property.Name}, please check if you have added the partial keyword to class"
             );

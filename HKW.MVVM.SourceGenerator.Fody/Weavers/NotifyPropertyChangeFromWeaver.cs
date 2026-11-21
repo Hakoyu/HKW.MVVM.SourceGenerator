@@ -45,8 +45,7 @@ internal class NotifyPropertyChangeFromWeaver
 
         // 如果启用了缓存,则会生成一个新字段来缓存值
         var fieldName = $"_{property.Name.FirstLetterToLower()}Cache";
-        var field =
-            _classInfo.HelperType.Fields.FirstOrDefault(x => x.Name == fieldName)
+        var field = _classInfo.HelperType.Fields.FirstOrDefault(x => x.Name == fieldName)
             ?? throw new WeaverException($"Field {fieldName} not exist");
 
         property.GetMethod.Body = new MethodBody(property.GetMethod);

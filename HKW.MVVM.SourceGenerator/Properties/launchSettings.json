@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "GeneratorTest": {
-      "commandName": "DebugRoslynComponent",
-      "targetProject": "..\\HKW.MVVM.SourceGeneratorTest\\HKW.MVVM.SourceGeneratorTest.csproj"
-    }
-  }
-}

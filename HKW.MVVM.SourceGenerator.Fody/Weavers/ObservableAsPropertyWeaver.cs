@@ -62,8 +62,7 @@ internal class ObservableAsPropertyWeaver
         WeaverHelper.ModuleDefinition.ImportReference(genericObservableAsPropertyHelperGetValue);
 
         var fieldName = "_" + property.Name.FirstLetterToLower() + "OAPH";
-        var field =
-            _classInfo.HelperType.Fields.FirstOrDefault(x => x.Name == fieldName)
+        var field = _classInfo.HelperType.Fields.FirstOrDefault(x => x.Name == fieldName)
             ?? throw new WeaverException($"Field {fieldName} not exist");
 
         property.GetMethod.Body = new MethodBody(property.GetMethod);

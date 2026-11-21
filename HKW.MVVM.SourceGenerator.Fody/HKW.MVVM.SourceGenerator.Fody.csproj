@@ -15,8 +15,7 @@
     <Deterministic>true</Deterministic>
     <PathMap Condition="'$(SolutionDir)' != ''">$(SolutionDir)=/_/</PathMap>
     <PathMap Condition="'$(SolutionDir)' == ''"
-      >$(MSBuildProjectDirectory)=/_/$(AssemblyName)/</PathMap
-    >
+      >$(MSBuildProjectDirectory)=/_/$(AssemblyName)/</PathMap>
   </PropertyGroup>
 
   <ItemGroup>

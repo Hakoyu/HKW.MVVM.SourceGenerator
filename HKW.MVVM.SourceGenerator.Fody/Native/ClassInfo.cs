@@ -17,11 +17,9 @@ internal sealed class ClassInfo
         var helperObjectName = TypeName + "ObservableObjectHelper";
         IsGeneric = Type.GenericParameters.Count > 0;
 
-        HelperType =
-            type.NestedTypes.SingleOrDefault(x => x.Name == helperObjectName)
+        HelperType = type.NestedTypes.SingleOrDefault(x => x.Name == helperObjectName)
             ?? throw new WeaverException($"Class {type.Name} has no {helperObjectName}");
-        var helperProperty =
-            type.Properties.SingleOrDefault(x => x.Name == helperPropertytName)
+        var helperProperty = type.Properties.SingleOrDefault(x => x.Name == helperPropertytName)
             ?? throw new WeaverException($"Class {type.Name} has no {helperPropertytName}");
 
         if (IsGeneric)

@@ -10,7 +10,7 @@ MVVM：
 
 - 使用 `[ObservableProperty]` 为可写属性生成属性变更通知逻辑。
 - 使用 `[NotifyPropertyChangeFrom]` 将一个或多个属性的变更传播到只读计算属性，并支持缓存计算结果。
-- 使用 `CommunityToolkit.Mvvm.Input.RelayCommand` 生成同步或异步命令属性，支持 `CanExecute` 和一个命令参数。
+- 使用 `[RelayCommand]` 生成同步或异步命令属性，支持 `CanExecute` 和一个命令参数。
 - 使用 `[ObservableAsProperty]` 将 `HKW.MVVM` 的 `ObservableAsPropertyHelper<T>` 暴露为只读属性。
 
 依赖注入：
@@ -28,8 +28,8 @@ Roslyn 源生成器面向 `.NET Standard 2.0`，可由 Visual Studio 的编译�
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="HKW.MVVM" Version="0.1.2" />
-  <PackageReference Include="HKW.MVVM.SourceGenerator" Version="0.1.4" />
+  <PackageReference Include="HKW.MVVM" Version="0.2.0" />
+  <PackageReference Include="HKW.MVVM.SourceGenerator" Version="0.2.0" />
   <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" PrivateAssets="all" />
   <PackageReference Include="Fody" Version="6.9.3" PrivateAssets="all" />
 </ItemGroup>
@@ -591,8 +591,9 @@ MVVM：
 
 ## 开发与验证
 
-- 仓库包含源生成器、Fody weaver 和测试项目。
-- 使用 `dotnet build HKW.MVVM.SourceGenerator` 即可编译源生成器和 Fody weaver。
+- 仓库包含运行时库（`HKW.MVVM.SourceGenerator`）、Roslyn 源生成器（`HKW.MVVM.SourceGenerator.Generators`）、Fody weaver（`HKW.MVVM.SourceGenerator.Fody`）和测试项目（`HKW.MVVM.SourceGenerator.Tests`）。
+- 打包时，`HKW.MVVM.SourceGenerator` 将纯净的运行时程序集打入 `lib/netstandard2.0/`，将源生成器与辅助库打入 `analyzers/dotnet/cs/`，将 Fody weaver 打入 `weaver/`，避免将 Roslyn 编译期依赖带入运行时或 AOT 构建。
+- 使用 `dotnet build HKW.MVVM.SourceGenerator` 即可编译运行时库、源生成器和 Fody weaver。
 - 完整解决方案支持 `dotnet build`，无需打开 Visual Studio 或禁用 Fody。在仓库根目录执行：
 
   ```powershell

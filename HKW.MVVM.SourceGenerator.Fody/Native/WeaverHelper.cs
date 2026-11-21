@@ -28,10 +28,9 @@ internal static class WeaverHelper
         }
         var toolkitAssembly = moduleDefinition.AssemblyResolver.Resolve(MVVMToolkit);
 
-        ObservableObject =
-            toolkitAssembly.MainModule.GetType(
-                "CommunityToolkit.Mvvm.ComponentModel.ObservableObject"
-            )
+        ObservableObject = toolkitAssembly.MainModule.GetType(
+            "CommunityToolkit.Mvvm.ComponentModel.ObservableObject"
+        )
             ?? throw new WeaverException(
                 $"Could not find CommunityToolkit.Mvvm.ComponentModel.ObservableObject in {toolkitAssembly.Name.Name}."
             );
@@ -59,19 +58,17 @@ internal static class WeaverHelper
         }
         Logger.LogInfo($"{HKWMVVMSourceGenerator!.Name} {HKWMVVMSourceGenerator.Version}");
 
-        ObservablePropertyAttribute =
-            ModuleDefinition.FindType(
-                "CommunityToolkit.Mvvm.ComponentModel",
-                "ObservablePropertyAttribute",
-                HKWMVVMSourceGenerator
-            ) ?? throw new WeaverException("ObservablePropertyAttribute is null");
+        ObservablePropertyAttribute = ModuleDefinition.FindType(
+            "CommunityToolkit.Mvvm.ComponentModel",
+            "ObservablePropertyAttribute",
+            MVVMToolkit
+        ) ?? throw new WeaverException("ObservablePropertyAttribute is null");
 
-        NotifyPropertyChangeFromAttribute =
-            ModuleDefinition.FindType(
-                "HKW.MVVM.SourceGenerator",
-                "NotifyPropertyChangeFromAttribute",
-                HKWMVVMSourceGenerator
-            ) ?? throw new WeaverException("NotifyPropertyChangeFromAttribute is null");
+        NotifyPropertyChangeFromAttribute = ModuleDefinition.FindType(
+            "HKW.MVVM.SourceGenerator",
+            "NotifyPropertyChangeFromAttribute",
+            HKWMVVMSourceGenerator
+        ) ?? throw new WeaverException("NotifyPropertyChangeFromAttribute is null");
 
         HKWMVVM = moduleDefinition
             .AssemblyReferences.Where(x => x.Name == "HKW.MVVM")
@@ -101,8 +98,12 @@ internal static class WeaverHelper
     )
     {
         // Resolve against the target framework, not the build host's runtime assemblies.
-        var generatedCodeType = findTypeDefinition("System.CodeDom.Compiler.GeneratedCodeAttribute");
-        var debuggerBrowsableType = findTypeDefinition("System.Diagnostics.DebuggerBrowsableAttribute");
+        var generatedCodeType = findTypeDefinition(
+            "System.CodeDom.Compiler.GeneratedCodeAttribute"
+        );
+        var debuggerBrowsableType = findTypeDefinition(
+            "System.Diagnostics.DebuggerBrowsableAttribute"
+        );
         var generatedCodeConstructor = moduleDefinition.ImportReference(
             generatedCodeType.Methods.Single(x =>
                 x.IsConstructor
@@ -116,7 +117,8 @@ internal static class WeaverHelper
                 x.IsConstructor
                 && x.IsStatic is false
                 && x.Parameters.Count == 1
-                && x.Parameters[0].ParameterType.FullName == "System.Diagnostics.DebuggerBrowsableState"
+                && x.Parameters[0].ParameterType.FullName
+                    == "System.Diagnostics.DebuggerBrowsableState"
             )
         );
 

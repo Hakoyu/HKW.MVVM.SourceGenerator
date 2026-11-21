@@ -24,11 +24,11 @@ internal sealed class MVVMGenerator : IIncrementalGenerator
     public const string ObservableObject =
         "global::CommunityToolkit.Mvvm.ComponentModel.ObservableObject";
 
-    public static string NotifyPropertyChangeFromAttribute { get; } =
-        typeof(NotifyPropertyChangeFromAttribute).GetGlobalFullName();
+    public const string NotifyPropertyChangeFromAttribute =
+        "global::HKW.MVVM.SourceGenerator.NotifyPropertyChangeFromAttribute";
 
-    public static string ObservableAsPropertyAttribute { get; } =
-        typeof(ObservableAsPropertyAttribute).GetGlobalFullName();
+    public const string ObservableAsPropertyAttribute =
+        "global::HKW.MVVM.SourceGenerator.ObservableAsPropertyAttribute";
 
     public static string PropertyChangingEventArgs { get; } =
         typeof(PropertyChangingEventArgs).GetGlobalFullName();
@@ -43,9 +43,12 @@ internal sealed class MVVMGenerator : IIncrementalGenerator
                 static (syntaxContext, _) =>
                 {
                     var declaredClass = (ClassDeclarationSyntax)syntaxContext.Node;
-                    var classSymbol = syntaxContext.SemanticModel.GetDeclaredSymbol(declaredClass);
+                    var classSymbol = syntaxContext.SemanticModel.GetDeclaredSymbol(declaredClass)!;
+                    // 抽象类无法作为分布类
+                    if (classSymbol.IsAbstract)
+                        return null!;
                     // 如果没有继承ObservableObject,则为null
-                    return classSymbol?.InheritedFrom(MVVMGenerator.ObservableObject) is true
+                    return classSymbol.InheritedFrom(MVVMGenerator.ObservableObject)
                         ? declaredClass.SyntaxTree
                         : null!;
                 }

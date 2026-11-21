@@ -12,6 +12,35 @@ namespace HKW.MVVM.SourceGenerator.Tests;
 public sealed class MVVMGeneratorTests
 {
     [TestMethod]
+    public void RuntimeAssembly_DoesNotReferenceRoslynOrContainGenerators()
+    {
+        var runtimeAssembly = typeof(DIConfigurationBase).Assembly;
+        var referencedNames = runtimeAssembly
+            .GetReferencedAssemblies()
+            .Select(static assemblyName => assemblyName.Name)
+            .ToArray();
+
+        Assert.IsFalse(
+            referencedNames.Any(static name =>
+                name is not null
+                && (
+                    name.StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)
+                    || string.Equals(name, "HKW.SourceGeneratorUtils", StringComparison.Ordinal)
+                )
+            ),
+            $"Runtime assembly should not reference Roslyn or HKW.SourceGeneratorUtils, actual: {string.Join(", ", referencedNames)}"
+        );
+
+        var exportedAndInternalTypes = runtimeAssembly.GetTypes();
+        Assert.IsFalse(
+            exportedAndInternalTypes.Any(static type =>
+                type.Name is "DIGenerator" or "MVVMGenerator"
+            ),
+            "Runtime assembly should not contain Roslyn source generator types."
+        );
+    }
+
+    [TestMethod]
     public void ObservableProperty_GeneratedFieldAttributesResolveAtRuntime()
     {
         var field = typeof(TestModel).GetField(

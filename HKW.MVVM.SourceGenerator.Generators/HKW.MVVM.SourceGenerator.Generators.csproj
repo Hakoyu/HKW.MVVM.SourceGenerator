@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnforceExtendedAnalyzerRules>false</EnforceExtendedAnalyzerRules>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <Deterministic>true</Deterministic>
+    <PathMap Condition="'$(SolutionDir)' != ''">$(SolutionDir)=/_/</PathMap>
+    <PathMap Condition="'$(SolutionDir)' == ''"
+      >$(MSBuildProjectDirectory)=/_/$(AssemblyName)/</PathMap>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference
+      Include="Microsoft.CodeAnalysis.CSharp"
+      Version="5.12.0"
+      PrivateAssets="all"
+    />
+    <PackageReference
+      Include="Microsoft.CodeAnalysis.Analyzers"
+      Version="5.12.0"
+      PrivateAssets="all"
+    />
+    <PackageReference
+      Include="HKW.SourceGeneratorUtils"
+      Version="0.2.3"
+      PrivateAssets="all"
+      GeneratePathProperty="true"
+    />
+    <!-- 项目分析器必须引用包, 否则 FileNotFoundException -->
+    <Analyzer Include="$(PkgHKW_SourceGeneratorUtils)\lib\netstandard2.0\*.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="DI\DIServiceProvider.cs" />
+    <Compile Remove="DI\ServiceProviderOptions.cs" />
+    <EmbeddedResource
+      Include="DI\DIServiceProvider.cs"
+      LogicalName="HKW.MVVM.SourceGenerator.DIServiceProvider.cs"
+    />
+    <EmbeddedResource
+      Include="DI\ServiceProviderOptions.cs"
+      LogicalName="HKW.MVVM.SourceGenerator.ServiceProviderOptions.cs"
+    />
+  </ItemGroup>
+</Project>

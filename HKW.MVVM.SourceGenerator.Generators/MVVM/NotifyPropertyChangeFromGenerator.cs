@@ -150,7 +150,7 @@ internal sealed class NotifyPropertyChangeFromGenerator
         var info = new NotifyPropertyChangeFromInfo(property, getMethod, validPropertyNames);
         if (
             attributeInfo.TryGetParam<NotifyPropertyChangeFromCacheMode>(
-                nameof(NotifyPropertyChangeFromAttribute.CacheMode),
+                "CacheMode",
                 out var cacheMode
             )
         )

@@ -196,10 +196,8 @@ public sealed class DIGeneratorTests
         using var provider = new ProviderRuntimeServices().BuildServiceProvider();
         var instances = new ConcurrentSingleton[32];
 
-        Parallel.For(
-            0,
-            instances.Length,
-            index => instances[index] = provider.GetRequiredService<ConcurrentSingleton>()
+        Parallel.For(0, instances.Length, index =>
+            instances[index] = provider.GetRequiredService<ConcurrentSingleton>()
         );
 
         Assert.AreEqual(1, ConcurrentSingleton.ConstructorCount);

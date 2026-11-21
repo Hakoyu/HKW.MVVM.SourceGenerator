@@ -7,6 +7,27 @@ using Microsoft.CodeAnalysis;
 
 namespace HKW.MVVM.SourceGenerator;
 
+/// <summary>
+/// 生成器内部镜像, 避免分析器程序集在编译期加载运行时 DLL
+/// </summary>
+internal enum DIServiceRegistration
+{
+    Normal,
+    Scoped,
+    Singleton,
+    LazySingleton,
+}
+
+/// <summary>
+/// 生成器内部镜像, 避免分析器程序集在编译期加载运行时 DLL
+/// </summary>
+internal enum NotifyPropertyChangeFromCacheMode
+{
+    Disable,
+    Enable,
+    OnFirstChange,
+}
+
 internal static class NativeExtensions
 {
     public static string ToCode(this DIServiceRegistration registration)

@@ -21,14 +21,12 @@ internal sealed class DIGenerator : IIncrementalGenerator
     private const string ServiceProviderOptionsResourceName =
         "HKW.MVVM.SourceGenerator.ServiceProviderOptions.cs";
 
-    private static string RegistrationsTypeName { get; } =
-        typeof(DIConfigurationBase).GetFullName();
-    private static string CustomRegistrarAttributeName { get; } =
-        typeof(DICustomServiceRegistrarAttribute).GetFullName();
-    private static string ConstructorAttributeName { get; } =
-        typeof(DIConstructorAttribute).GetFullName();
-    private static string PropertyAttributeName { get; } =
-        typeof(DIPropertyAttribute).GetFullName();
+    private const string RegistrationsTypeName = "HKW.MVVM.SourceGenerator.DIConfigurationBase";
+    private const string CustomRegistrarAttributeName =
+        "HKW.MVVM.SourceGenerator.DICustomServiceRegistrarAttribute";
+    private const string ConstructorAttributeName =
+        "HKW.MVVM.SourceGenerator.DIConstructorAttribute";
+    private const string PropertyAttributeName = "HKW.MVVM.SourceGenerator.DIPropertyAttribute";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -147,15 +145,12 @@ internal sealed class DIGenerator : IIncrementalGenerator
         if (attributeInfo is null)
             return RegistrationScan.Empty;
 
-        var attributeLocation =
-            attributeInfo.Data.ApplicationSyntaxReference?.GetSyntax().GetLocation()
+        var attributeLocation = attributeInfo
+            .Data.ApplicationSyntaxReference?.GetSyntax()
+            .GetLocation()
             ?? invocation.GetLocation();
-        var genericNameValues = attributeInfo
-            .GetParams<string>(nameof(DICustomServiceRegistrarAttribute.GenericNames))
-            .ToArray();
-        var registrationValues = attributeInfo.GetParams<DIServiceRegistration>(
-            nameof(DICustomServiceRegistrarAttribute.Registrations)
-        );
+        var genericNameValues = attributeInfo.GetParams<string>("GenericNames").ToArray();
+        var registrationValues = attributeInfo.GetParams<DIServiceRegistration>("Registrations");
         if (registrationValues is not null && registrationValues.Length != genericNameValues.Length)
         {
             return new RegistrationScan(
