@@ -6,7 +6,7 @@ namespace HKW.MVVM.SourceGenerator;
 #pragma warning disable S1186, S2326
 /// <summary>
 /// 声明由依赖注入源生成器在编译时收集的服务注册
-/// <para>配套特性 <see cref="DIConstructorAttribute"/>, <see cref="DIPropertyAttribute"/>, <see cref="DICustomServiceRegistrarAttribute"/></para>
+/// <para>配套特性 <see cref="DIConstructorAttribute"/>, <see cref="DIPropertyAttribute"/>, <see cref="DIMethodAttribute"/>, <see cref="DICustomServiceRegistrarAttribute"/></para>
 /// <para>示例1, 使用源生成自动注册 MainViewModel:
 /// <code><![CDATA[
 /// partial class AppServices : DIConfigurationBase

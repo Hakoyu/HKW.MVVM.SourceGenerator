@@ -199,6 +199,14 @@ public sealed class MVVMGeneratorTests
     }
 }
 
+public partial class DerivedTestModel : AbstractViewModel
+{
+    [ObservableProperty]
+    public int Value { get; set; }
+}
+
+public abstract partial class AbstractViewModel : ObservableObject;
+
 public partial class TestModel : ObservableObject
 {
     public TestModel()

@@ -1,4 +1,4 @@
-﻿using System.CodeDom.Compiler;
+using System.CodeDom.Compiler;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
@@ -44,9 +44,7 @@ internal sealed class MVVMGenerator : IIncrementalGenerator
                 {
                     var declaredClass = (ClassDeclarationSyntax)syntaxContext.Node;
                     var classSymbol = syntaxContext.SemanticModel.GetDeclaredSymbol(declaredClass)!;
-                    // 抽象类无法作为分布类
-                    if (classSymbol.IsAbstract)
-                        return null!;
+
                     // 如果没有继承ObservableObject,则为null
                     return classSymbol.InheritedFrom(MVVMGenerator.ObservableObject)
                         ? declaredClass.SyntaxTree

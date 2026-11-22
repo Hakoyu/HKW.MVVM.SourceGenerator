@@ -55,7 +55,7 @@ internal sealed class ClassSourceWriter
 
         foreach (var info in _classInfo.Members)
             writer.WriteInfo(info);
-        GenerateReactiveHelper(writer);
+        GenerateObservableObjectHelper(writer);
 
         writer.Indent--;
         writer.WriteLine();
@@ -69,7 +69,7 @@ internal sealed class ClassSourceWriter
         );
     }
 
-    public void GenerateReactiveHelper(IndentedTextWriter writer)
+    public void GenerateObservableObjectHelper(IndentedTextWriter writer)
     {
         writer.WriteLine();
         writer.WriteLine("/// <inheritdoc/>");
@@ -77,7 +77,7 @@ internal sealed class ClassSourceWriter
         writer.WriteLine($"protected sealed partial class {_classInfo.HelperObjectName}");
         writer.WriteLine("{");
         writer.Indent++;
-        GenerateReactiveHelperCtor(writer);
+        GenerateObservableObjectHelperCtor(writer);
         writer.WriteLine(GeneratorHelper.GeneratedCodeAttribute);
         writer.WriteLine(GeneratorHelper.DebuggerBrowsableNeverAttribute);
         writer.WriteLine($"{_classInfo.FullTypeName} {ClassInfo.SourceName};");
@@ -88,7 +88,7 @@ internal sealed class ClassSourceWriter
         writer.WriteLine("}");
     }
 
-    private void GenerateReactiveHelperCtor(IndentedTextWriter writer)
+    private void GenerateObservableObjectHelperCtor(IndentedTextWriter writer)
     {
         writer.WriteLine("/// <inheritdoc/>");
         writer.WriteLine(GeneratorHelper.GeneratedCodeAttribute);

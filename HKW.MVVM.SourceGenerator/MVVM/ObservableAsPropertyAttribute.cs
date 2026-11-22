@@ -15,8 +15,6 @@
 ///             .Select(n => n.Split(' ')[0])
 ///             .ToProperty(this, nameof(FirstName))
 ///             .Value;
-///
-///     protected void InitializeReactiveObject() { }
 /// }
 /// ]]></code>
 /// </para>
@@ -29,7 +27,7 @@
 ///
 ///     private ObservableAsPropertyHelper<string> _firstNameOAPH;
 ///
-///     protected void InitializeReactiveObject()
+///     protected void InitializeObject()
 ///     {
 ///        _fullName =
 ///            this.WhenAnyValue(x => x.Name)
@@ -41,9 +39,3 @@
 /// ]]></code></summary>
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class ObservableAsPropertyAttribute : Attribute { }
-
-///// <summary>
-///// 属性改变参数缓存特性
-///// </summary>
-//[AttributeUsage(AttributeTargets.Class)]
-//public sealed class PropertyChangedArgsCacheAttribute : Attribute { }

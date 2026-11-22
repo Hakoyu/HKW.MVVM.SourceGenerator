@@ -11,7 +11,7 @@ using Mono.Cecil.Rocks;
 namespace HKW.MVVM.SourceGenerator.Fody;
 
 /// <summary>
-/// ReactiveUI module weaver.
+/// ObservableObject module weaver.
 /// </summary>
 /// <seealso cref="BaseModuleWeaver" />
 public class ModuleWeaver : BaseModuleWeaver
@@ -27,7 +27,7 @@ public class ModuleWeaver : BaseModuleWeaver
         if (WeaverHelper.Initialize(ModuleDefinition, Logger, FindTypeDefinition) is false)
             return;
 
-        // 筛选所有实现了IReactiveObject接口的类
+        // 筛选所有 ObservableObject 的子类
         var classArray = ModuleDefinition
             .GetAllTypes()
             .Where(x =>
@@ -37,7 +37,7 @@ public class ModuleWeaver : BaseModuleWeaver
         foreach (var classType in classArray)
         {
             var classInfo = new ClassInfo(classType);
-            ReactivePropertyWeaver.Weave(classInfo);
+            ObservablePropertyWeaver.Weave(classInfo);
             NotifyPropertyChangeFromWeaver.Weave(classInfo);
             ObservableAsPropertyWeaver.Weave(classInfo);
         }

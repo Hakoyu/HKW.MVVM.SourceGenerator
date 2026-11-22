@@ -22,6 +22,63 @@ public sealed class DIGeneratorTests
     }
 
     [TestMethod]
+    public void MethodInjectionRunsAfterConstructionAndPropertyInjection()
+    {
+        using var provider = new MethodInjectionServices().BuildServiceProvider();
+
+        var service = provider.GetRequiredService<MethodInjectionService>();
+        var recorder = provider.GetRequiredService<MethodInjectionRecorder>();
+
+        Assert.IsNotNull(service.Dependency);
+        Assert.IsNotNull(service.PropertyDependency);
+        Assert.HasCount(2, service.LaterPlugins!);
+        Assert.IsFalse(service.LaterLazyDependency!.IsValueCreated);
+        Assert.IsNotNull(service.LaterLazyDependency.Value);
+        Assert.AreSequenceEqual(
+            new[] { "constructor", "property", "first", "override", "middle", "later" },
+            recorder.Snapshot()
+        );
+    }
+
+    [TestMethod]
+    public void MethodInjectionRunsWithMicrosoftServiceProvider()
+    {
+        using var provider = new MethodInjectionServices().Build().BuildServiceProvider();
+
+        var service = provider.GetRequiredService<MethodInjectionService>();
+        var recorder = provider.GetRequiredService<MethodInjectionRecorder>();
+
+        Assert.IsNotNull(service.LaterLazyDependency);
+        Assert.AreSequenceEqual(
+            new[] { "constructor", "property", "first", "override", "middle", "later" },
+            recorder.Snapshot()
+        );
+    }
+
+    [TestMethod]
+    public void MethodInjectionOverrideKeepsSingleSlotWithUpdatedOrder()
+    {
+        using var provider = new ReorderedMethodInjectionServices().BuildServiceProvider();
+
+        _ = provider.GetRequiredService<ReorderedMethodInjectionService>();
+        var recorder = provider.GetRequiredService<MethodInjectionRecorder>();
+
+        Assert.AreSequenceEqual(new[] { "derived", "reset" }, recorder.Snapshot());
+    }
+
+    [TestMethod]
+    public void ValidateOnBuildIncludesMethodInjectionDependencies()
+    {
+        var exception = Assert.Throws<AggregateException>(() =>
+            new MethodMissingDependencyServices().BuildServiceProvider(
+                new HKW.MVVM.SourceGenerator.ServiceProviderOptions { ValidateOnBuild = true }
+            )
+        );
+
+        Assert.Contains(nameof(IgnoredDependency), exception.ToString());
+    }
+
+    [TestMethod]
     public void HonorsGeneratedLifetimes()
     {
         var services = new ServiceCollection();
@@ -890,4 +947,163 @@ public sealed class InjectedService : IInjectedService
 
     public Lazy<LazyDependency> LazyDependency { get; }
 }
+
+public sealed partial class MethodInjectionServices : DIConfigurationBase
+{
+    protected override void Configure(IServiceCollection services)
+    {
+        RegisterSingleton<MethodInjectionRecorder>();
+        Register<MethodInjectionDependency>();
+        Register<MethodInjectionPropertyDependency>();
+        Register<MethodInjectionLazyDependency>();
+        Register<MethodInjectionPlugin, FirstMethodInjectionPlugin>();
+        Register<MethodInjectionPlugin, SecondMethodInjectionPlugin>();
+        Register<MethodInjectionService>();
+    }
+}
+
+public sealed partial class ReorderedMethodInjectionServices : DIConfigurationBase
+{
+    protected override void Configure(IServiceCollection services)
+    {
+        RegisterSingleton<MethodInjectionRecorder>();
+        Register<ReorderedMethodInjectionService>();
+    }
+}
+
+public sealed partial class MethodMissingDependencyServices : DIConfigurationBase
+{
+    protected override void Configure(IServiceCollection services)
+    {
+        Register<MethodMissingDependencyService>();
+    }
+}
+
+public sealed class MethodInjectionRecorder
+{
+    private readonly List<string> _events = [];
+
+    public void Add(string value)
+    {
+        lock (_events)
+            _events.Add(value);
+    }
+
+    public string[] Snapshot()
+    {
+        lock (_events)
+            return _events.ToArray();
+    }
+}
+
+public class MethodInjectionBase
+{
+    protected MethodInjectionBase(MethodInjectionRecorder recorder)
+    {
+        Recorder = recorder;
+    }
+
+    protected MethodInjectionRecorder Recorder { get; }
+
+    [DIMethod]
+    internal virtual void OnInitialized() => Recorder.Add("base");
+}
+
+public sealed class MethodInjectionService : MethodInjectionBase
+{
+    private MethodInjectionPropertyDependency _propertyDependency = null!;
+
+    public MethodInjectionService(
+        MethodInjectionRecorder recorder,
+        MethodInjectionDependency dependency
+    )
+        : base(recorder)
+    {
+        Dependency = dependency;
+        Recorder.Add("constructor");
+    }
+
+    public MethodInjectionDependency Dependency { get; private set; }
+
+    [DIProperty]
+    public MethodInjectionPropertyDependency PropertyDependency
+    {
+        get => _propertyDependency;
+        init
+        {
+            _propertyDependency = value;
+            Recorder.Add("property");
+        }
+    }
+
+    public IReadOnlyCollection<MethodInjectionPlugin>? LaterPlugins { get; private set; }
+
+    public Lazy<MethodInjectionLazyDependency>? LaterLazyDependency { get; private set; }
+
+    [DIMethod(-10)]
+    internal void InitializeFirst() => Recorder.Add("first");
+
+    [DIMethod(Order = 5)]
+    internal void InitializeMiddle() => Recorder.Add("middle");
+
+    [DIMethod(10)]
+    internal void InitializeLater(
+        MethodInjectionDependency dependency,
+        IEnumerable<MethodInjectionPlugin> plugins,
+        Lazy<MethodInjectionLazyDependency> lazyDependency
+    )
+    {
+        Dependency = dependency;
+        LaterPlugins = plugins.ToArray();
+        LaterLazyDependency = lazyDependency;
+        Recorder.Add("later");
+    }
+
+    internal override void OnInitialized() => Recorder.Add("override");
+}
+
+public class ReorderedMethodInjectionBase
+{
+    protected ReorderedMethodInjectionBase(MethodInjectionRecorder recorder)
+    {
+        Recorder = recorder;
+    }
+
+    protected MethodInjectionRecorder Recorder { get; }
+
+    [DIMethod(20)]
+    internal virtual void OnSetup() => Recorder.Add("base");
+
+    [DIMethod(0)]
+    internal void OnReset() => Recorder.Add("reset");
+}
+
+public sealed class ReorderedMethodInjectionService : ReorderedMethodInjectionBase
+{
+    public ReorderedMethodInjectionService(MethodInjectionRecorder recorder)
+        : base(recorder) { }
+
+    [DIMethod(-100)]
+    internal override void OnSetup() => Recorder.Add("derived");
+}
+
+public sealed class MethodMissingDependencyService
+{
+    [DIMethod]
+    internal void Initialize(IgnoredDependency dependency) => Dependency = dependency;
+
+    public IgnoredDependency? Dependency { get; private set; }
+}
+
+public sealed class MethodInjectionDependency;
+
+public sealed class MethodInjectionPropertyDependency;
+
+public sealed class MethodInjectionLazyDependency;
+
+public interface MethodInjectionPlugin;
+
+public sealed class FirstMethodInjectionPlugin : MethodInjectionPlugin;
+
+public sealed class SecondMethodInjectionPlugin : MethodInjectionPlugin;
 #pragma warning restore S2094

@@ -26,3 +26,4 @@ DI008 | DIGenerator | Error | Descriptors
 DI009 | DIGenerator | Warning | Descriptors
 DI010 | DIGenerator | Error | Descriptors
 DI011 | DIGenerator | Error | Descriptors
+DI012 | DIGenerator | Error | Descriptors

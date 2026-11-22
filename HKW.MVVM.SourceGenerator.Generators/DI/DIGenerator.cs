@@ -22,11 +22,12 @@ internal sealed class DIGenerator : IIncrementalGenerator
         "HKW.MVVM.SourceGenerator.ServiceProviderOptions.cs";
 
     private const string RegistrationsTypeName = "HKW.MVVM.SourceGenerator.DIConfigurationBase";
-    private const string CustomRegistrarAttributeName =
+    private const string DICustomRegistrarAttributeName =
         "HKW.MVVM.SourceGenerator.DICustomServiceRegistrarAttribute";
-    private const string ConstructorAttributeName =
+    private const string DIConstructorAttributeName =
         "HKW.MVVM.SourceGenerator.DIConstructorAttribute";
-    private const string PropertyAttributeName = "HKW.MVVM.SourceGenerator.DIPropertyAttribute";
+    private const string DIPropertyAttributeName = "HKW.MVVM.SourceGenerator.DIPropertyAttribute";
+    private const string DIMethodAttributeName = "HKW.MVVM.SourceGenerator.DIMethodAttribute";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -100,7 +101,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
         var syntax = (ClassDeclarationSyntax)context.Node;
         if (
             context.SemanticModel.GetDeclaredSymbol(syntax) is not INamedTypeSymbol symbol
-            || symbol.BaseType?.GetFullName() != RegistrationsTypeName
+            || symbol.BaseType?.IsName(RegistrationsTypeName) is not true
         )
             return null;
 
@@ -119,7 +120,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
             return RegistrationScan.Empty;
 
         if (
-            method.ContainingType.ToDisplayString() == RegistrationsTypeName
+            method.ContainingType.IsName(RegistrationsTypeName)
             && method.Parameters.Length == 0
             && method.TypeArguments.Length is >= 1 and <= 2
         )
@@ -141,7 +142,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
             );
         }
 
-        var attributeInfo = method.GetFirstAttribute(CustomRegistrarAttributeName).GetInfo();
+        var attributeInfo = method.GetFirstAttribute(DICustomRegistrarAttributeName).GetInfo();
         if (attributeInfo is null)
             return RegistrationScan.Empty;
 
@@ -213,7 +214,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
     private static bool IsConfigureMethod(IMethodSymbol method) =>
         method.Name == "Configure"
         && method.IsOverride
-        && method.OverriddenMethod?.ContainingType.ToDisplayString() == RegistrationsTypeName;
+        && method.OverriddenMethod?.ContainingType.IsName(RegistrationsTypeName) is true;
 
     private static void Generate(
         SourceProductionContext context,
@@ -294,22 +295,26 @@ internal sealed class DIGenerator : IIncrementalGenerator
         ImmutableArray<Registration> registrations
     )
     {
-        var nodes = new List<RegistrationNode>();
-        foreach (var registration in registrations)
+        var validRegistrations = ImmutableArray.CreateBuilder<Registration>();
+        foreach (
+            var registration in registrations.Where(registration =>
+                IsRegistrationConstructible(compilation, registration)
+            )
+        )
         {
-            if (registration.ImplementationType is not INamedTypeSymbol implementationType)
-                continue;
-            var constructor = SelectConstructor(implementationType);
-            if (constructor is null)
-                continue;
-            var dependencies = constructor
-                .Parameters.Select(parameter => parameter.Type)
-                .Concat(
-                    GetInjectedProperties(compilation, implementationType)
-                        .Select(property => property.Type)
-                )
-                .Select(GetDependencyInfo)
-                .ToArray();
+            validRegistrations.Add(registration);
+        }
+
+        var nodes = new List<RegistrationNode>();
+        foreach (var registration in validRegistrations.ToImmutable())
+        {
+            var implementationType = (INamedTypeSymbol)registration.ImplementationType;
+            var constructor = SelectConstructor(implementationType)!;
+            var dependencies = GetRegistrationDependencies(
+                compilation,
+                implementationType,
+                constructor
+            );
             nodes.Add(new RegistrationNode(registration, dependencies));
         }
 
@@ -466,7 +471,14 @@ internal sealed class DIGenerator : IIncrementalGenerator
     )
     {
         if (
-            TryCreateFactory(context, compilation, registration, reportDiagnostics, out var factory)
+            TryCreateFactory(
+                context,
+                compilation,
+                registration,
+                reportDiagnostics,
+                out var factoryExpression,
+                out var methodInvocations
+            )
             is false
         )
             return;
@@ -482,9 +494,24 @@ internal sealed class DIGenerator : IIncrementalGenerator
         writer.WriteLine(">(services, serviceProvider =>");
         writer.WriteLine("{");
         writer.Indent++;
-        writer.Write("return ");
-        writer.Write(factory);
-        writer.WriteLine(";");
+        if (methodInvocations.Length == 0)
+        {
+            writer.Write("return ");
+            writer.Write(factoryExpression);
+            writer.WriteLine(";");
+        }
+        else
+        {
+            writer.Write("var instance = ");
+            writer.Write(factoryExpression);
+            writer.WriteLine(";");
+            foreach (var invocation in methodInvocations)
+            {
+                writer.Write(invocation);
+                writer.WriteLine(";");
+            }
+            writer.WriteLine("return instance;");
+        }
         writer.Indent--;
         writer.WriteLine("});");
     }
@@ -503,7 +530,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
             ? null
             : configuration.Symbol.ContainingNamespace.ToDisplayString();
         var accessibility =
-            configuration.Symbol.DeclaredAccessibility == Accessibility.Public
+            configuration.Symbol.DeclaredAccessibility is Accessibility.Public
                 ? "public"
                 : "internal";
 
@@ -614,17 +641,14 @@ internal sealed class DIGenerator : IIncrementalGenerator
     {
         if (registration.ImplementationType is not INamedTypeSymbol implementationType)
             return;
-        var constructor = SelectConstructor(implementationType);
-        if (constructor is null)
+        if (IsRegistrationConstructible(compilation, registration) is false)
             return;
-        var dependencies = constructor
-            .Parameters.Select(parameter => parameter.Type)
-            .Concat(
-                GetInjectedProperties(compilation, implementationType)
-                    .Select(property => property.Type)
-            )
-            .Select(GetDependencyInfo)
-            .ToArray();
+        var constructor = SelectConstructor(implementationType)!;
+        var dependencies = GetRegistrationDependencies(
+            compilation,
+            implementationType,
+            constructor
+        );
         var lifetime = registration.MethodName switch
         {
             "RegisterScoped" => "Scoped",
@@ -657,7 +681,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
     {
         var constructors = implementationType.InstanceConstructors;
         var markedConstructors = constructors
-            .Where(static constructor => constructor.HasAttribute(ConstructorAttributeName))
+            .Where(static constructor => constructor.HasAttribute(DIConstructorAttributeName))
             .ToImmutableArray();
         if (constructors.Length == 1 && markedConstructors.Length <= 1)
             return constructors[0];
@@ -686,10 +710,12 @@ internal sealed class DIGenerator : IIncrementalGenerator
         Compilation compilation,
         Registration registration,
         bool reportDiagnostics,
-        out string factory
+        out string factoryExpression,
+        out string[] methodInvocations
     )
     {
-        factory = string.Empty;
+        factoryExpression = string.Empty;
+        methodInvocations = [];
         if (
             registration.ImplementationType is not INamedTypeSymbol implementationType
             || implementationType.TypeKind != TypeKind.Class
@@ -727,7 +753,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
 
         var constructors = implementationType.InstanceConstructors;
         var markedConstructors = constructors
-            .Where(static constructor => constructor.HasAttribute(ConstructorAttributeName))
+            .Where(static constructor => constructor.HasAttribute(DIConstructorAttributeName))
             .ToImmutableArray();
         IMethodSymbol constructor;
         if (constructors.Length == 1 && markedConstructors.Length <= 1)
@@ -784,6 +810,23 @@ internal sealed class DIGenerator : IIncrementalGenerator
             }
         }
 
+        var methods = GetInjectedMethods(compilation, implementationType);
+        foreach (var method in methods)
+        {
+            if (IsValidInjectedMethod(method))
+                continue;
+
+            var diagnostic = Diagnostic.Create(
+                DIDescriptors.InvalidInjectedMethod,
+                method.Locations.FirstOrDefault() ?? registration.Location,
+                method.Name,
+                implementationType.GetName()
+            );
+            if (reportDiagnostics)
+                context.ReportDiagnostic(diagnostic);
+            return false;
+        }
+
         var builder = new StringBuilder()
             .Append("new ")
             .Append(implementationType.GetGlobalFullName())
@@ -803,9 +846,148 @@ internal sealed class DIGenerator : IIncrementalGenerator
             }
             builder.Append('}');
         }
-        factory = builder.ToString();
+        factoryExpression = builder.ToString();
+        methodInvocations = methods
+            .Select(method => CreateMethodInvocation(implementationType, method))
+            .ToArray();
         return true;
     }
+
+    /// <summary>
+    /// 创建对象构建后调用注入方法的语句
+    /// </summary>
+    private static string CreateMethodInvocation(
+        INamedTypeSymbol implementationType,
+        IMethodSymbol method
+    )
+    {
+        var arguments = string.Join(
+            ", ",
+            method.Parameters.Select(parameter => Resolve(parameter.Type))
+        );
+        if (SymbolEqualityComparer.Default.Equals(method.ContainingType, implementationType))
+            return $"instance.{method.Name}({arguments})";
+
+        // 基类成员通过显式转换调用, 保证虚方法与隐藏方法均只执行一次
+        return $"(({method.ContainingType!.GetGlobalFullName()})instance).{method.Name}({arguments})";
+    }
+
+    /// <summary>
+    /// 判断注册是否可参与静态依赖分析
+    /// </summary>
+    private static bool IsRegistrationConstructible(
+        Compilation compilation,
+        Registration registration
+    )
+    {
+        if (
+            registration.ImplementationType is not INamedTypeSymbol implementationType
+            || implementationType.TypeKind != TypeKind.Class
+            || implementationType.IsAbstract
+            || implementationType.IsUnboundGenericType
+            || SelectConstructor(implementationType) is null
+        )
+            return false;
+
+        return GetInjectedMethods(compilation, implementationType).All(IsValidInjectedMethod);
+    }
+
+    /// <summary>
+    /// 获取注册的构造, 属性与方法的全部依赖
+    /// </summary>
+    private static DependencyInfo[] GetRegistrationDependencies(
+        Compilation compilation,
+        INamedTypeSymbol implementationType,
+        IMethodSymbol constructor
+    )
+    {
+        return constructor
+            .Parameters.Select(parameter => parameter.Type)
+            .Concat(
+                GetInjectedProperties(compilation, implementationType)
+                    .Select(property => property.Type)
+            )
+            .Concat(
+                GetInjectedMethods(compilation, implementationType)
+                    .SelectMany(method => method.Parameters)
+                    .Select(parameter => parameter.Type)
+            )
+            .Select(GetDependencyInfo)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// 获取需要方法注入的成员, 按基类到派生类扫描并按执行顺序排序
+    /// </summary>
+    private static List<IMethodSymbol> GetInjectedMethods(
+        Compilation compilation,
+        INamedTypeSymbol implementationType
+    )
+    {
+        var typeChain = new List<INamedTypeSymbol>();
+        for (var type = implementationType; type is not null; type = type.BaseType)
+        {
+            if (type.ContainingAssembly.SymbolEquals(compilation.Assembly) is false)
+                break;
+            typeChain.Add(type);
+        }
+        typeChain.Reverse();
+
+        var entries = new List<InjectedMethodEntry>();
+        var entryIndexBySlot = new Dictionary<IMethodSymbol, int>(SymbolEqualityComparer.Default);
+        for (var typeIndex = 0; typeIndex < typeChain.Count; typeIndex++)
+        {
+            var methods = typeChain[typeIndex]
+                .GetMembers()
+                .OfType<IMethodSymbol>()
+                .Where(static method => method.MethodKind is MethodKind.Ordinary)
+                .OrderBy(static method =>
+                    method.Locations.FirstOrDefault()?.SourceSpan.Start ?? int.MaxValue
+                )
+                .ToArray();
+            for (var methodIndex = 0; methodIndex < methods.Length; methodIndex++)
+            {
+                var method = methods[methodIndex];
+                var attribute = method.GetFirstAttribute(DIMethodAttributeName)?.GetInfo();
+                if (attribute is null)
+                    continue;
+
+                var order = attribute.GetParam<int>("Order");
+                var slot = GetInjectedMethodSlot(method);
+                // 重写方法沿用基类槽位, 避免虚方法被重复调用
+                if (entryIndexBySlot.TryGetValue(slot, out var entryIndex))
+                {
+                    entries[entryIndex].Order = order;
+                    continue;
+                }
+                entryIndexBySlot.Add(slot, entries.Count);
+                entries.Add(new InjectedMethodEntry(method, order, typeIndex, methodIndex));
+            }
+        }
+
+        return entries
+            .OrderBy(static entry => entry.Order)
+            .ThenBy(static entry => entry.TypeIndex)
+            .ThenBy(static entry => entry.DeclarationIndex)
+            .Select(static entry => entry.Method)
+            .ToList();
+    }
+
+    private static IMethodSymbol GetInjectedMethodSlot(IMethodSymbol method)
+    {
+        var slot = method;
+        while (slot.IsOverride && slot.OverriddenMethod is not null)
+            slot = slot.OverriddenMethod;
+        return slot.OriginalDefinition;
+    }
+
+    private static bool IsValidInjectedMethod(IMethodSymbol method) =>
+        method.IsStatic is false
+        && method.ReturnsVoid
+        && method.IsGenericMethod is false
+        && method.MethodKind is MethodKind.Ordinary
+        && method.DeclaredAccessibility >= Accessibility.Internal
+        && method.Parameters.All(static parameter => parameter.RefKind is RefKind.None);
 
     private static List<IPropertySymbol> GetInjectedProperties(
         Compilation compilation,
@@ -820,7 +1002,7 @@ internal sealed class DIGenerator : IIncrementalGenerator
             properties.AddRange(
                 type.GetMembers()
                     .OfType<IPropertySymbol>()
-                    .Where(static property => property.HasAttribute(PropertyAttributeName))
+                    .Where(static property => property.HasAttribute(DIPropertyAttributeName))
             );
         }
         return properties;
@@ -868,6 +1050,19 @@ internal sealed class DIGenerator : IIncrementalGenerator
     {
         public ITypeSymbol Type { get; } = type;
         public bool IsEnumerable { get; } = isEnumerable;
+    }
+
+    private sealed class InjectedMethodEntry(
+        IMethodSymbol method,
+        int order,
+        int typeIndex,
+        int declarationIndex
+    )
+    {
+        public IMethodSymbol Method { get; } = method;
+        public int Order { get; set; } = order;
+        public int TypeIndex { get; } = typeIndex;
+        public int DeclarationIndex { get; } = declarationIndex;
     }
 
     private sealed class RegistrationNode(Registration registration, DependencyInfo[] dependencies)

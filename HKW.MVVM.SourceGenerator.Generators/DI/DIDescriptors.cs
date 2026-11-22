@@ -108,4 +108,13 @@ internal static class DIDescriptors
         DiagnosticSeverity.Error,
         true
     );
+
+    public static readonly DiagnosticDescriptor InvalidInjectedMethod = new(
+        "DI012",
+        "Dependency injection method is invalid",
+        "Method '{0}' on type '{1}' must be an accessible (internal or public), non-static, non-generic void method without ref, out, or in parameters",
+        Category,
+        DiagnosticSeverity.Error,
+        true
+    );
 }

@@ -20,6 +20,7 @@ MVVM：
 - 继承 `DIConfigurationBase` 声明配置类型，生成器为其生成 `Build()` / `Build(IServiceCollection)`，直接产出面向 `Microsoft.Extensions.DependencyInjection` 的显式工厂代码。
 - 使用 `[DIConstructor]` 在多构造函数类型中选择注入使用的构造函数。
 - 使用 `[DIProperty]` 标记需要属性注入的属性，支持 `init` 访问器。
+- 使用 `[DIMethod]` 标记对象构建与属性注入完成后自动执行的方法，支持方法参数注入和 `Order` 排序。
 - 自动识别构造函数参数中的 `Lazy<T>` 和 `IEnumerable<T>`，分别映射为延迟解析和多实现解析。
 
 ## 安装
@@ -557,9 +558,30 @@ public sealed class Greeter
 - 属性必须具有 `public`、`internal` 或 `protected internal` 的 setter（含 `init`），且该服务的整个注册都会被跳过。
 - 不支持静态属性和索引器。
 
+### 方法注入
+
+标注 `[DIMethod]` 的实例方法会在构造函数执行和 `[DIProperty]` 属性赋值之后被依次调用，方法参数按与构造函数相同的规则解析：
+
+```csharp
+public sealed class Greeter
+{
+    [DIMethod]
+    internal void Initialize(ILogger logger, IEnumerable<IHandler> handlers)
+    {
+        ...
+    }
+}
+```
+
+- 只扫描实现类型及其在**当前程序集**内声明的基类，按基类到派生类的顺序收集。
+- 方法必须是非静态、非泛型、返回 `void`、可访问性不低于 `internal`，且参数不能包含 `ref`、`out` 或 `in`，否则报告 `DI012` 并跳过该服务的注册。
+- 同一个类型可以标记多个方法，默认按声明顺序执行；使用 `[DIMethod(Order = -1)]` 或 `[DIMethod(-1)]` 指定执行顺序，`Order` 越小越先执行，相同时基类先于派生类。
+- 派生类重写已标记的虚方法时，同一虚方法槽位只调用一次；若重写方法再次标注 `[DIMethod]`，则以新的 `Order` 参与排序。
+- 方法参数同样参与编译期循环依赖（`DI010`）、Singleton 捕获 Scoped 服务（`DI011`）检测，以及轻量 Provider 的 `ValidateOnBuild` 静态验证。
+
 ### 参数解析
 
-构造函数参数和标注属性按以下规则解析：
+构造函数参数、标注属性和 `[DIMethod]` 方法参数按以下规则解析：
 
 | 类型 | 生成的解析代码 |
 |---|---|
@@ -584,10 +606,11 @@ MVVM：
 
 - 配置类必须直接继承 `DIConfigurationBase`，并满足顶层、非抽象、`partial`、非泛型和可访问无参数构造函数等约束。
 - `Register*` 调用只有直接出现在 `Configure(IServiceCollection)` 中才会被收集；自定义泛型注册方法应使用 `[DICustomServiceRegistrar]`。
+- `[DIMethod]` 只支持非静态、非泛型、返回 `void` 且无 `ref`/`out`/`in` 参数的实例方法；异步方法需要在方法内部自行调度。
 - 泛型服务/实现类型、开放泛型定义暂不支持。
 - 轻量 Provider 只接受具有 `ImplementationFactory` 的非 keyed 手写 `ServiceDescriptor`；类型/实例描述符、keyed service 和开放泛型不受支持，需要这些功能时请继续使用 `Build()` 与 Microsoft DI。
 - `ValidateOnBuild` 只验证生成器能够静态描述的依赖，不执行用户工厂；完全不透明的工厂依赖仅能在解析时发现。
-- 引用其他程序集的实现类型只有在只有一个可访问构造函数时才能使用；`[DIConstructor]`/`[DIProperty]` 只对当前编译中的类型成员生效。
+- 引用其他程序集的实现类型只有在只有一个可访问构造函数时才能使用；`[DIConstructor]`/`[DIProperty]`/`[DIMethod]` 只对当前编译中的类型成员生效。
 
 ## 开发与验证
 

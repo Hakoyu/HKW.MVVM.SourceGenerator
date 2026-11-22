@@ -5,18 +5,18 @@ using Mono.Cecil.Rocks;
 
 namespace HKW.MVVM.SourceGenerator.Fody;
 
-internal class ReactivePropertyWeaver
+internal class ObservablePropertyWeaver
 {
     public static void Weave(ClassInfo classInfo)
     {
-        ModuleWeaver.Logger.LogInfo(nameof(ReactivePropertyWeaver));
-        var w = new ReactivePropertyWeaver(classInfo);
+        ModuleWeaver.Logger.LogInfo(nameof(ObservablePropertyWeaver));
+        var w = new ObservablePropertyWeaver(classInfo);
         w.Weave();
     }
 
     private readonly ClassInfo _classInfo;
 
-    public ReactivePropertyWeaver(ClassInfo classInfo)
+    public ObservablePropertyWeaver(ClassInfo classInfo)
     {
         _classInfo = classInfo;
     }
@@ -38,7 +38,7 @@ internal class ReactivePropertyWeaver
         if (property.SetMethod is null)
         {
             ModuleWeaver.Logger.LogError(
-                $"Property {property.DeclaringType.FullName}.{property.Name} has no setter, therefore it is not possible for the property to change, and thus should not be marked with [ReactiveProperty]"
+                $"Property {property.DeclaringType.FullName}.{property.Name} has no setter, therefore it is not possible for the property to change, and thus should not be marked with [ObservableObject]"
             );
             return;
         }
