@@ -146,12 +146,15 @@ public partial class UserViewModel
                 return;
 
             var oldValue = backingField;
-            _source.OnPropertyChanging("Name");
             var cancel = false;
             _source.OnNameChanging(oldValue, newValue, ref cancel);
             if (cancel)
+            {
+                _source.OnPropertyChanged("Name");
                 return;
+            }
 
+            _source.OnPropertyChanging("Name");
             NotifyIsNameValidChanging();
             backingField = newValue;
             _source.OnPropertyChanged("Name");

@@ -89,17 +89,17 @@ public sealed class MVVMGeneratorTests
     }
 
     [TestMethod]
-    public void ObservableProperty_CancelChanging()
+    public void ObservableProperty_CancelChangingRaisesPropertyChanged()
     {
         var model = new TestModel { Name = "Steve" };
         model.CancelNameChanging = true;
-        var changeCount = 0;
-        model.PropertyChanged += (_, _) => changeCount++;
+        var changes = new List<string?>();
+        model.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
 
         model.Name = "Alice";
 
-        Assert.AreEqual(0, changeCount);
         Assert.AreEqual("Steve", model.Name);
+        CollectionAssert.AreEqual(new[] { nameof(TestModel.Name) }, changes);
     }
 
     [TestMethod]

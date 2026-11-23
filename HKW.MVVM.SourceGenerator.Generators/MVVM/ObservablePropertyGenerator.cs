@@ -75,7 +75,13 @@ internal sealed class ObservablePropertyGenerator
         contents.Add(
             $"{ClassInfo.SourceName}.On{property.Name}Changing(oldValue,newValue,ref cancel);"
         );
-        contents.Add($"if(cancel) return;");
+        contents.Add("if (cancel)");
+        contents.Add("{");
+        contents.Add(
+            $"    {ClassInfo.SourceName}.OnPropertyChanged({_classInfo.ChangeArgsCache.GetChangedArgs(property.Name)});"
+        );
+        contents.Add("    return;");
+        contents.Add("}");
         contents.Add(
             $"{ClassInfo.SourceName}.OnPropertyChanging({_classInfo.ChangeArgsCache.GetChangingArgs(property.Name)});"
         );
